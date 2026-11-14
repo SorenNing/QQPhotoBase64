@@ -1,0 +1,10 @@
+Package: com.ning.qqphotobase64
+Name: QQ图片编码
+Version: 0.1.0
+Architecture: iphoneos-arm64e
+Maintainer: Ning
+Author: Ning
+Section: Tweaks
+Priority: optional
+Depends: firmware (>= 15.0)
+Description: QQ static-photo Base64 containers with a circular toggle and file decode preview. Base64 provides no secrecy.

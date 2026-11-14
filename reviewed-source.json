@@ -1,0 +1,25 @@
+{
+  "files": {
+    ".gitignore": "3945b10ab016b1c9c53a18f492b7876cab70eb197360381ba3043068fa86c614",
+    "README.md": "c28f7930f16b95c8a822e328d7cfef08997391c6d8b2cc6040fc7b10c52424a1",
+    "control": "7c2f66b87f7687b8a8a1f556588069378a0d28cf5eaf7b8bf67e0c32d73988b9",
+    "tools/package.py": "2970431c23433767a6add58d82407b37ede40afb93e361381c6a8b492961ff20",
+    "tools/verify_source.py": "ec22c3171f6b19acb5b10b8a8512e4d0e38a52f1626af42916e4850a5a44f7eb",
+    "tools/build-macos.sh": "033b12d3e26e99eaccfcfebe2f2b456e5a3e47a6e3ddf00bb69baadcd6dae5f1",
+    "tools/verify_packages_macos.py": "b8ec04c7c1fc33779500f4dc61455eb393d4ebd52ff00fc456a6e642c7b61c89",
+    "tools/test-macos.sh": "5a770d5f4b06aec9903a9c265f6c2c9485d62133043860421419172130f7e1d9",
+    "tools/verify.py": "ec435bad5bff2f22a2286c9748b345da339c40984338b3e5a6d3920f44b1654a",
+    "tools/make_fixture.py": "2b8ff1858191b18dc150a303f2625883291499db0e1a520bd33779534804db24",
+    "tests/codec_test.m": "bf01f34214c39f9cc0c3d0197cafa7604dd0c3d85041f3689c379b9693eb249e",
+    "src/QQPCodec.h": "59a5eebdf3339f07e6d244ee9a40aca289203865949b2e6a013b7b38e82064cb",
+    "src/QQPImageIO.m": "b65880fe7b7f7874518e3cd8c9197f97c68b1c7fc3adc4c83dc004e258fb5501",
+    "src/QQPRuntime.h": "21d7e0e1632e89ce4c987b9a70ca78520f451fc6bb89201781e07155f7c04031",
+    "src/QQPCodec.m": "fb4ca9049ef1aaa3778cb0f09752e1fc0fef2a460f11cbd6cea5f4a52f8714d3",
+    "src/QQPShare.m": "ef37aa54156bb6f996acb67455df793ecaa88843227e8ba22ae5a849b33b37d3",
+    "src/QQPImageIO.h": "a6b2cf5c1e21a542e0c10e4bf214abd0d09afcdbea1848a3d012e37ca0f163d1",
+    "src/QQPRuntime.m": "ef1ec49bf2167ac1d6a44f92e9f22749c6a7405f375e0001af626ab2f8e257a2",
+    "src/QQPPlugin.m": "28158d9539bb33b3a2f3b1cbd41a16a89071d1aecebb124f1b36e633e47b5900",
+    "layout/Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.plist": "6121cd82814dfde5471a0f2b01d0cbbfb8f9955e47dfb81c8f1040d7c40a9b54",
+    ".github/workflows/build.yml": "3ed8414665323d1530c43da4f1001505829f3995cf935b7bf58a69d766391d30"
+  }
+}

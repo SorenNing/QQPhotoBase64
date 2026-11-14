@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+mkdir -p build dist
+SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+SOURCES=(src/QQPRuntime.m src/QQPCodec.m src/QQPImageIO.m src/QQPPlugin.m src/QQPShare.m)
+for ARCH in arm64 arm64e; do
+  xcrun --sdk iphoneos clang -target "${ARCH}-apple-ios15.0" -isysroot "$SDK" \
+    -fobjc-arc -fblocks -O2 -fvisibility=hidden -Wall -Wextra -Wno-unused-parameter \
+    -Werror=implicit-function-declaration -Werror=objc-method-access \
+    -dynamiclib -Isrc -framework Foundation -framework UIKit -framework Photos \
+    -framework ImageIO -framework QuickLook -framework UniformTypeIdentifiers \
+    -framework CoreGraphics -framework QuartzCore -Wl,-fixup_chains \
+    -Wl,-install_name,@rpath/QQPhotoBase64.dylib \
+    "${SOURCES[@]}" -o "build/QQPhotoBase64-${ARCH}.dylib"
+done
+xcrun lipo -create build/QQPhotoBase64-arm64.dylib build/QQPhotoBase64-arm64e.dylib -output build/QQPhotoBase64.dylib
+codesign --force --sign - --timestamp=none build/QQPhotoBase64.dylib
+codesign --verify --strict --all-architectures --verbose=2 build/QQPhotoBase64.dylib
+python3 tools/package.py

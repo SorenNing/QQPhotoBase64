@@ -1,0 +1,30 @@
+name: Build QQPhotoBase64
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source identities
+        run: python3 tools/verify_source.py
+      - name: Test production codec on macOS
+        run: bash tools/test-macos.sh
+      - name: Build and sign iOS plugin
+        run: bash tools/build-macos.sh
+      - name: Verify final packages and signatures
+        run: |
+          python3 tools/verify.py
+          python3 tools/verify_packages_macos.py dist/*.deb
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: QQPhotoBase64-0.1.0
+          path: |
+            dist/*
+            build/*.json
+            build/*.log
+          if-no-files-found: error
