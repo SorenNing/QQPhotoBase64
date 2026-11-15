@@ -1,4 +1,4 @@
-# QQPhotoBase64 / QQ图片编码
+# qqEncryption
 
 作者：Ning · 版本：0.1.4 · iOS 15+
 

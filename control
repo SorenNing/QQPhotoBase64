@@ -1,5 +1,5 @@
 Package: com.ning.qqphotobase64
-Name: QQ图片编码
+Name: qqEncryption
 Version: 0.1.4
 Architecture: iphoneos-arm64e
 Maintainer: Ning

@@ -2,9 +2,9 @@
   "files": {
     ".github/workflows/build.yml": "883ecf86775f127aebb6a5ba068a19d871c56d777aa2452097f2c961af461be0",
     ".gitignore": "3945b10ab016b1c9c53a18f492b7876cab70eb197360381ba3043068fa86c614",
-    "README.md": "0bf1ed640fd23191baa8df2c64c2073b71c66e86c22d8dc56915345f0ae61646",
-    "SOURCE-STATUS.md": "35e76cfa5e81bfe9590b7f9ee22a763b9150608f06604e582e19158f73f90b84",
-    "control": "48a2aa25b50b8af45b194a9435496aa2ab79e3f13528094045ed71d2c459f84b",
+    "README.md": "42add644b783317ea28e9cfc36581bb4e40a761a2fad7b8ce3b8f3c1da6aa4ec",
+    "SOURCE-STATUS.md": "8dcb0ced4e2f978005a4805f72e6f134bb6bdcace37e99602b1f3e398338cfcd",
+    "control": "6317c53732908316776590e82a9d814cc773ea8ffa1fdf1613216c8dff9b0b30",
     "layout/Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.plist": "6121cd82814dfde5471a0f2b01d0cbbfb8f9955e47dfb81c8f1040d7c40a9b54",
     "src/QQPChat.h": "dc90ea599b66d98b90e2ae6246a44d08b9a0b2b031a35012a7c95ac837c64b65",
     "src/QQPChat.m": "b264f3dcdd1721cb0fccd4ab0a66b8c01d505aeb4daaff45a5456e37293c7456",
@@ -31,7 +31,7 @@
     "tools/make_fixture.py": "2b8ff1858191b18dc150a303f2625883291499db0e1a520bd33779534804db24",
     "tools/package.py": "2dcc517430534dabc9c83a3472900a49e92bb6e0398b38f9b5819811f167ae7c",
     "tools/test-macos.sh": "555788caa85d0b6e7cec6d68cc61bc6f00980befacfa25e0c06cb0727a872e93",
-    "tools/verify.py": "b873bfc011415c28143af74f027ba3bcf04dcc8afcb8bc86f388003cb83844cd",
+    "tools/verify.py": "58424b15a2e73e589a26cd51a9f1d3dd69036e6eea9ffcc30c382b04d9af8b1f",
     "tools/verify_packages_macos.py": "ecb11663b0a9262ded501a91e927afc9c804a2db064c675e82f94926e9f84acb",
     "tools/verify_source.py": "ec22c3171f6b19acb5b10b8a8512e4d0e38a52f1626af42916e4850a5a44f7eb"
   }

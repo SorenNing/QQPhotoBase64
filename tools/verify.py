@@ -222,7 +222,7 @@ def package(path):
         key, sep, value = line.partition(':')
         need(sep and key not in fields and key.strip() == key, 'invalid/duplicate control field')
         fields[key] = value.strip(); last = key
-    expected = {'Package': 'com.ning.qqphotobase64', 'Name': 'QQ图片编码', 'Version': '0.1.4', 'Maintainer': 'Ning', 'Author': 'Ning'}
+    expected = {'Package': 'com.ning.qqphotobase64', 'Name': 'qqEncryption', 'Version': '0.1.4', 'Maintainer': 'Ning', 'Author': 'Ning'}
     need(all(fields.get(k) == v for k, v in expected.items()), 'control identity/version/author mismatch')
     arch = fields.get('Architecture')
     need(arch in ('iphoneos-arm64', 'iphoneos-arm64e'), 'wrong package architecture')
