@@ -21,8 +21,7 @@ for ARCH in arm64 arm64e; do
     -framework CoreGraphics -framework QuartzCore -Wl,-fixup_chains \
     -Wl,-install_name,@rpath/QQPhotoBase64.dylib \
     "${OBJECTS[@]}" -o "build/QQPhotoBase64-${ARCH}.dylib"
+  codesign --force --sign - --timestamp=none "build/QQPhotoBase64-${ARCH}.dylib"
+  codesign --verify --strict --all-architectures --verbose=2 "build/QQPhotoBase64-${ARCH}.dylib"
 done
-xcrun lipo -create build/QQPhotoBase64-arm64.dylib build/QQPhotoBase64-arm64e.dylib -output build/QQPhotoBase64.dylib
-codesign --force --sign - --timestamp=none build/QQPhotoBase64.dylib
-codesign --verify --strict --all-architectures --verbose=2 build/QQPhotoBase64.dylib
 python3 tools/package.py

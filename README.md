@@ -1,6 +1,6 @@
 # QQPhotoBase64 / QQ图片编码
 
-作者：Ning · 版本：0.1.3 · iOS 15+
+作者：Ning · 版本：0.1.4 · iOS 15+
 
 QQ 相册底栏在“原图”旁加入圆圈“加密”开关。勾选后将选择的静态图片编码为既有 `.qqenc` JSON 文件，MP4/MOV/M4V 视频编码为新 `QQENC2` 流式 Base64 `.qqenc` 文件；仅在当前聊天对象可被安全核实时直发，整批交给 QQ 后关闭相册返回聊天。失败仍显示原因且不会改发未编码原视频。QQ 文件详情页在“用其他应用打开”上方显示“解密”，解码后在 QQ 内预览图片或播放视频，不使用系统 Quick Look。
 
@@ -21,12 +21,12 @@ QQ 相册底栏在“原图”旁加入圆圈“加密”开关。勾选后将�
 
 ## 构建与包
 
-GitHub Actions 仅允许 `workflow_dispatch`，使用 `macos-latest`。顺序为源码 SHA256 清单核对、Apple 平台生产 codec 测试、Apple clang 双架构编译、lipo、ad-hoc 签名、双布局打包、代码页/特殊槽/包结构检查、最终包提取后 `codesign --verify --strict --all-architectures`。
+GitHub Actions 仅允许 `workflow_dispatch`，使用 `macos-latest`。顺序为源码 SHA256 清单核对、Apple 平台生产 codec 测试、Apple clang 双架构分别编译与 ad-hoc 签名、按对应架构分别打包、代码页/特殊槽/包结构检查、最终包提取后 `codesign --verify --strict --all-architectures`。
 
-- `iphoneos-arm64`：普通无根 `/var/jb/Library/MobileSubstrate/DynamicLibraries/`。
-- `iphoneos-arm64e`：RootHide loader 使用的 `Library/MobileSubstrate/DynamicLibraries/` 布局，需相应越狱环境的加载器支持。
+- `iphoneos-arm64`：只含 arm64 动态库，普通无根 `/var/jb/Library/MobileSubstrate/DynamicLibraries/`。
+- `iphoneos-arm64e`：只含真 arm64e 动态库（subtype `0x80000002`），RootHide loader 使用的 `Library/MobileSubstrate/DynamicLibraries/` 布局，需相应越狱环境的加载器支持。
 
-两包内含同一份 arm64 + 真 arm64e 胖二进制，包标识相同，不要同时安装。签名检查不代表 Apple 信任签名，也不证明设备加载器兼容。本工程不自动安装、注入、注销或发布到软件源。
+0.1.4 仅将两包各自重复的另一架构移出，不删图片、视频或播放器功能。各包独立签名，包架构必须与唯一 Mach-O 架构一致。两包标识相同，不要同时安装。签名检查不代表 Apple 信任签名，也不证明设备加载器兼容。本工程不自动安装、注入、注销或发布到软件源。
 
 Mac 本地命令：
 

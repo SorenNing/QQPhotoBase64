@@ -2,12 +2,14 @@
 """Verify each final deb and ask macOS codesign to check extracted binaries."""
 import json,subprocess,sys,tarfile,tempfile
 from pathlib import Path
-from verify import ar, package
+from verify import ar, package, macho
 
 def main():
     results=[]
     for argument in sys.argv[1:]:
-        path=Path(argument);result,_=package(path)
+        path=Path(argument);result,payload=package(path)
+        expected=0 if result['architecture']=='iphoneos-arm64' else 0x80000002
+        result['dylib']=macho(payload,identity=True,expected=expected)
         members=ar(path.read_bytes())
         data=next(v for n,v in members.items() if n.startswith('data.tar'))
         import io

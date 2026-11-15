@@ -119,21 +119,28 @@ def fixups(data):
             'symbols_format': compression, 'chain_walk_verified': False}
 
 
-def macho(data, identity=False):
+def macho(data, identity=False, expected=None):
     formats = {b'\xca\xfe\xba\xbe': ('>', False), b'\xca\xfe\xba\xbf': ('>', True),
                b'\xbe\xba\xfe\xca': ('<', False), b'\xbf\xba\xfe\xca': ('<', True)}
     magic = bytes(data[:4])
-    need(magic in formats, 'expected fat Mach-O')
-    endian, wide = formats[magic]
-    count, = u(endian + 'I', data, 4)
-    need(count == 2, 'expected exactly two fat slices')
-    stride = 32 if wide else 20
+    thin = magic == b'\xcf\xfa\xed\xfe'
+    need(thin or magic in formats, 'expected signed 64-bit Mach-O or fat Mach-O')
+    if thin:
+        cpu, sub = u('<II', data, 4)
+        descriptors = [(cpu, sub, 0, len(data), 0)]
+    else:
+        endian, wide = formats[magic]
+        count, = u(endian + 'I', data, 4)
+        need(count == 2, 'expected exactly two fat slices')
+        stride = 32 if wide else 20
+        descriptors = [u(endian + ('IIQQII' if wide else 'IIIII'), data, 8 + stride * i)[:5]
+                       for i in range(count)]
     ranges, slices, seen = [], [], set()
-    for i in range(count):
-        fields = u(endian + ('IIQQII' if wide else 'IIIII'), data, 8 + stride * i)
-        cpu, sub, off, size, align = fields[:5]
-        need(cpu == 0x100000c and sub in ARCHES and sub not in seen, 'wrong/duplicate fat architecture')
-        need(align <= 30 and off >= 8 + stride * count and off % (1 << align) == 0, 'invalid slice alignment/offset')
+    for cpu, sub, off, size, align in descriptors:
+        need(cpu == 0x100000c and sub in ARCHES and sub not in seen, 'wrong/duplicate architecture')
+        if not thin:
+            need(align <= 30 and off >= 8 + stride * count and off % (1 << align) == 0,
+                 'invalid slice alignment/offset')
         image = part(data, off, size); ranges.append((off, off + size)); seen.add(sub)
         magic, icpu, isub, kind, ncmds, cmdbytes, flags, reserved = u('<8I', image)
         need((magic, icpu, isub, kind) == (0xfeedfacf, cpu, sub, 6), 'slice header disagrees with fat/MH_DYLIB')
@@ -157,6 +164,7 @@ def macho(data, identity=False):
         slices.append({'architecture': ARCHES[sub], 'cpu_subtype': hex(sub), 'offset': off, 'size': len(image),
                        'code_directories': signature(image, so, ss), 'chained_fixups': fixups(part(image, fo, fs)), 'markers': hits})
     disjoint(ranges)
+    need(expected is None or (thin and seen == {expected}), 'package architecture does not match signed Mach-O')
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data), 'slices': slices,
             'qq_identity_required': identity, 'cms_trust_verified': False}
 
@@ -214,11 +222,11 @@ def package(path):
         key, sep, value = line.partition(':')
         need(sep and key not in fields and key.strip() == key, 'invalid/duplicate control field')
         fields[key] = value.strip(); last = key
-    expected = {'Package': 'com.ning.qqphotobase64', 'Name': 'QQ图片编码', 'Version': '0.1.3', 'Maintainer': 'Ning', 'Author': 'Ning'}
+    expected = {'Package': 'com.ning.qqphotobase64', 'Name': 'QQ图片编码', 'Version': '0.1.4', 'Maintainer': 'Ning', 'Author': 'Ning'}
     need(all(fields.get(k) == v for k, v in expected.items()), 'control identity/version/author mismatch')
     arch = fields.get('Architecture')
     need(arch in ('iphoneos-arm64', 'iphoneos-arm64e'), 'wrong package architecture')
-    need(path.name == f'com.ning.qqphotobase64_0.1.3_{arch}.deb', 'package filename disagrees with control')
+    need(path.name == f'com.ning.qqphotobase64_0.1.4_{arch}.deb', 'package filename disagrees with control')
     prefix = 'var/jb/' if arch == 'iphoneos-arm64' else ''
     base = prefix + 'Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64'
     files = tar(members['data.tar.gz'])
@@ -242,13 +250,16 @@ def main():
         else:
             paths = sorted(args.dist.glob('*.deb'))
             need(len(paths) == 2, f'expected two final .deb files in {args.dist}; found {len(paths)}')
-            payloads = []
+            reports = {}
             for path in paths:
-                record, payload = package(path); report['packages'].append(record); payloads.append(payload)
-            need({p['architecture'] for p in report['packages']} == {'iphoneos-arm64', 'iphoneos-arm64e'}, 'missing architecture variant')
-            need(payloads[0] == payloads[1], 'package dylib bytes differ')
-            report['dylib'] = macho(payloads[0], identity=True)
-            report['dylibs_byte_identical'] = True
+                record, payload = package(path); report['packages'].append(record)
+                arch = record['architecture']
+                need(arch not in reports, 'duplicate package architecture')
+                reports[arch] = macho(payload, identity=True, expected=0 if arch == 'iphoneos-arm64' else 0x80000002)
+            need(set(reports) == {'iphoneos-arm64', 'iphoneos-arm64e'}, 'missing architecture variant')
+            need(reports['iphoneos-arm64']['slices'][0]['chained_fixups']['pointer_formats'] == [6], 'wrong arm64 pointer format')
+            need(reports['iphoneos-arm64e']['slices'][0]['chained_fixups']['pointer_formats'] == [12], 'wrong arm64e pointer format')
+            report['dylibs'] = reports
         report['ok'] = True
     except (ValueError, OSError, EOFError, tarfile.TarError, struct.error, OverflowError, zlib.error, ExpatError) as error:
         report['error'] = f'{type(error).__name__}: {error}'

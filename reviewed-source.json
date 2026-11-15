@@ -1,10 +1,10 @@
 {
   "files": {
-    ".github/workflows/build.yml": "c8669487ced30ff652db0c9a79b53e13f9a43f3fdb66a867d30cba15d33e4481",
+    ".github/workflows/build.yml": "883ecf86775f127aebb6a5ba068a19d871c56d777aa2452097f2c961af461be0",
     ".gitignore": "3945b10ab016b1c9c53a18f492b7876cab70eb197360381ba3043068fa86c614",
-    "README.md": "a304a03c92efdd91f81582487182a176d10972ae617bb67564d523a2b22991ce",
-    "SOURCE-STATUS.md": "c8d4b5d92991d6fafc9d1dccd176206691884ce89f4926acc0fda0deb0644120",
-    "control": "2951b6a39c0d1c9ad541ced6f61ca5d8be23e60afc3e2e95b949886aa38a4b89",
+    "README.md": "0bf1ed640fd23191baa8df2c64c2073b71c66e86c22d8dc56915345f0ae61646",
+    "SOURCE-STATUS.md": "35e76cfa5e81bfe9590b7f9ee22a763b9150608f06604e582e19158f73f90b84",
+    "control": "48a2aa25b50b8af45b194a9435496aa2ab79e3f13528094045ed71d2c459f84b",
     "layout/Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.plist": "6121cd82814dfde5471a0f2b01d0cbbfb8f9955e47dfb81c8f1040d7c40a9b54",
     "src/QQPChat.h": "dc90ea599b66d98b90e2ae6246a44d08b9a0b2b031a35012a7c95ac837c64b65",
     "src/QQPChat.m": "b264f3dcdd1721cb0fccd4ab0a66b8c01d505aeb4daaff45a5456e37293c7456",
@@ -27,12 +27,12 @@
     "tests/fixture-video.mp4": "c330885092d0b2f60ff947b87fb9ff49dbedb7b0929acace8781b2b875b79c86",
     "tests/video_codec_test.m": "6d590513e3659db71f3b1496846030a321eb80c907a3148ceb322ecd6859655e",
     "tests/weak_field_test.c": "65e08b559c312c126b1938ced72f498c3046d13ae6f32ed47ea03ce1bee91302",
-    "tools/build-macos.sh": "cdbb3176fa4990a65966eca67b595df347c2940bdbdc6e385bca41722f60e2cb",
+    "tools/build-macos.sh": "e6afbc45176b95a48f02a9f8fe14b0781395f961a3ad813e48bf2503866a6113",
     "tools/make_fixture.py": "2b8ff1858191b18dc150a303f2625883291499db0e1a520bd33779534804db24",
-    "tools/package.py": "d60225a988e585c4c964278759ffb09f2485eeb168d046bd281d7b77c7aa20a0",
+    "tools/package.py": "2dcc517430534dabc9c83a3472900a49e92bb6e0398b38f9b5819811f167ae7c",
     "tools/test-macos.sh": "555788caa85d0b6e7cec6d68cc61bc6f00980befacfa25e0c06cb0727a872e93",
-    "tools/verify.py": "adc6f0c67a3d04fd635cbdd01b7b3c489c221163ea856d056ca84414e871d3f4",
-    "tools/verify_packages_macos.py": "b8ec04c7c1fc33779500f4dc61455eb393d4ebd52ff00fc456a6e642c7b61c89",
+    "tools/verify.py": "b873bfc011415c28143af74f027ba3bcf04dcc8afcb8bc86f388003cb83844cd",
+    "tools/verify_packages_macos.py": "ecb11663b0a9262ded501a91e927afc9c804a2db064c675e82f94926e9f84acb",
     "tools/verify_source.py": "ec22c3171f6b19acb5b10b8a8512e4d0e38a52f1626af42916e4850a5a44f7eb"
   }
 }
