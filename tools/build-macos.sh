@@ -16,19 +16,11 @@ for ARCH in arm64 arm64e; do
     OBJECTS+=("$OBJECT")
   done
   xcrun --sdk iphoneos clang -target "${ARCH}-apple-ios15.0" -isysroot "$SDK" \
-    -std=c11 -O2 -Wall -Wextra -Werror -fvisibility=hidden -Isrc \
-    -c src/QQPWeakField.c -o "build/${ARCH}/QQPWeakField.o"
-  OBJECTS+=("build/${ARCH}/QQPWeakField.o")
-  # Let the Swift driver link its own platform runtime; do not guess library paths.
-  xcrun --sdk iphoneos swiftc -target "${ARCH}-apple-ios15.0" -sdk "$SDK" \
-    -swift-version 5 -O -parse-as-library -emit-library -module-name QQPhotoBase64 \
-    -import-objc-header src/QQPReflection.h \
-    src/QQPContextInspector.swift "${OBJECTS[@]}" \
-    -framework Foundation -framework UIKit -framework Photos -framework ImageIO \
-    -framework QuickLook -framework UniformTypeIdentifiers -framework CoreGraphics \
-    -framework QuartzCore -Xlinker -fixup_chains \
-    -Xlinker -install_name -Xlinker @rpath/QQPhotoBase64.dylib \
-    -o "build/QQPhotoBase64-${ARCH}.dylib"
+    -dynamiclib -framework Foundation -framework UIKit -framework Photos \
+    -framework ImageIO -framework QuickLook -framework UniformTypeIdentifiers \
+    -framework CoreGraphics -framework QuartzCore -Wl,-fixup_chains \
+    -Wl,-install_name,@rpath/QQPhotoBase64.dylib \
+    "${OBJECTS[@]}" -o "build/QQPhotoBase64-${ARCH}.dylib"
 done
 xcrun lipo -create build/QQPhotoBase64-arm64.dylib build/QQPhotoBase64-arm64e.dylib -output build/QQPhotoBase64.dylib
 codesign --force --sign - --timestamp=none build/QQPhotoBase64.dylib

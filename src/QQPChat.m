@@ -2,24 +2,9 @@
 #import "QQPRuntime.h"
 #import <objc/runtime.h>
 #import <objc/message.h>
-static const void *QQPBindingKey=&QQPBindingKey;
-static const void *QQPDisabledKey=&QQPDisabledKey;
-static BOOL QQPCaptureIsDisabled(id picker) {
-    return objc_getAssociatedObject(picker,QQPDisabledKey)!=nil;
-}
-@interface QQPChatBinding : NSObject
-@property(nonatomic,weak) id owner;
-@property(nonatomic) NSUInteger generation;
-@property(nonatomic) BOOL assigning;
-@end
-@implementation QQPChatBinding
-@end
 @interface QQPChatTarget ()
 @property(nonatomic,weak) UIViewController *picker;
-@property(nonatomic,weak) id owner;
 @property(nonatomic,weak) id context;
-@property(nonatomic,strong) QQPChatBinding *binding;
-@property(nonatomic) NSUInteger generation;
 @property(nonatomic,copy) NSString *uin;
 @property(nonatomic,copy) NSString *uid;
 @property(nonatomic) int chatType;
@@ -30,16 +15,16 @@ static BOOL QQPCaptureIsDisabled(id picker) {
 - (instancetype)initPrivate { return [super init]; }
 @end
 
-static id QQPBoundContext(id owner) {
-    if(!owner || ![owner isKindOfClass:NSObject.class])return nil;
-    if(QQPClassNamed(owner,@"AIOChatParameter.AIOChatContext"))return owner;
-    if(!NSThread.isMainThread || !QQPClassNamed(owner,@"NTBaseAIO.NTAIOChatBaseViewController"))return nil;
-    Class inspector=NSClassFromString(@"QQPContextInspector");
-    SEL read=NSSelectorFromString(@"contextForOwner:");
-    if(!QQPMethodMatches(object_getClass(inspector),read,"@",@[@"@"]))return nil;
+static id QQPPickerContext(UIViewController *picker) {
+    if(!NSThread.isMainThread || !picker || !picker.viewIfLoaded.window ||
+       !(QQPClassNamed(picker,@"NTAIOPhotoMediaPickerController") ||
+         QQPClassNamed(picker,@"PhotoPickerViewController")))return nil;
+    SEL getter=NSSelectorFromString(@"context");
+    Class cls=object_getClass(picker);
+    if(!QQPMethodMatches(cls,getter,"@",@[]))return nil;
     @try {
-        id value=((id(*)(id,SEL,id))objc_msgSend)(inspector,read,owner);
-        return QQPClassNamed(value,@"AIOChatParameter.AIOChatContext")?value:nil;
+        id context=((id(*)(id,SEL))objc_msgSend)(picker,getter);
+        return QQPClassNamed(context,@"AIOChatParameter.AIOChatContext")?context:nil;
     } @catch(__unused NSException *exception) { return nil; }
 }
 static BOOL QQPReadIdentity(id context, NSString **uin, NSString **uid, int *type) {
@@ -47,8 +32,9 @@ static BOOL QQPReadIdentity(id context, NSString **uin, NSString **uid, int *typ
        !QQPMethodMatches(object_getClass(context),NSSelectorFromString(@"chatType"),"i",@[]))return NO;
     @try {
         id u=QQPGetObject(context,@"peerUin"),v=QQPGetObject(context,@"peerUid");
+        if(!u)u=@"";if(!v)v=@"";
         if(![u isKindOfClass:NSString.class] || ![v isKindOfClass:NSString.class] ||
-           ![u length] || ![v length] || [u length]>256 || [v length]>256)return NO;
+           (![u length] && ![v length]) || [u length]>256 || [v length]>256)return NO;
         NSCharacterSet *bad=NSCharacterSet.whitespaceAndNewlineCharacterSet;
         if([u rangeOfCharacterFromSet:bad].location!=NSNotFound ||
            [v rangeOfCharacterFromSet:bad].location!=NSNotFound)return NO;
@@ -57,81 +43,26 @@ static BOOL QQPReadIdentity(id context, NSString **uin, NSString **uid, int *typ
         return YES;
     } @catch(__unused NSException *exception) { return NO; }
 }
-static QQPChatBinding *QQPBinding(UIViewController *picker) {
-    return objc_getAssociatedObject(picker,QQPBindingKey);
-}
-static id QQPVerifiedPickerOwner(UIViewController *picker, QQPChatBinding *binding) {
-    if(QQPCaptureIsDisabled(picker) || !NSThread.isMainThread || !picker ||
-       !binding || binding.assigning || QQPBinding(picker)!=binding)return nil;
-    // Verify what this picker actually stores, not only its setter argument.
-    // Prefer an exact object getter. Swift-only weak fields use the bridge's
-    // ownership-checked, single-field runtime load; never a guessed ivar cast.
-    @try {
-        id actual=nil;SEL getter=NSSelectorFromString(@"context");
-        if(class_getInstanceMethod(object_getClass(picker),getter)) {
-            if(!QQPMethodMatches(object_getClass(picker),getter,"@",@[]))return nil;
-            actual=QQPGetObject(picker,@"context");
-        } else {
-            Class inspector=NSClassFromString(@"QQPContextInspector");
-            SEL read=NSSelectorFromString(@"ownerForPicker:");
-            if(!QQPMethodMatches(object_getClass(inspector),read,"@",@[@"@"]))return nil;
-            actual=((id(*)(id,SEL,id))objc_msgSend)(inspector,read,picker);
-        }
-        id expected=binding.owner;
-        BOOL allowed=actual &&
-            ([actual isKindOfClass:NSClassFromString(@"AIOChatParameter.AIOChatContext")] ||
-             [actual isKindOfClass:NSClassFromString(@"NTBaseAIO.NTAIOChatBaseViewController")]);
-        return allowed && actual==expected && !QQPCaptureIsDisabled(picker) &&
-            QQPBinding(picker)==binding && !binding.assigning && binding.owner==actual?actual:nil;
-    } @catch(__unused NSException *exception) { return nil; }
-}
-void QQPInstallChatCapture(void) {
-    Class cls=NSClassFromString(@"NTAIOPhotoMediaPickerController");
-    QQPHookObjectSetter(cls,NSSelectorFromString(@"setContext:"),
-        ^id(id picker,__unused id owner){
-            if(!NSThread.isMainThread){
-                objc_setAssociatedObject(picker,QQPDisabledKey,@YES,OBJC_ASSOCIATION_RETAIN);
-                return nil;
-            }
-            if(QQPCaptureIsDisabled(picker))return nil;
-            // A fresh identity per invocation also protects against setter reentry.
-            QQPChatBinding *binding=[QQPChatBinding new];binding.assigning=YES;
-            objc_setAssociatedObject(picker,QQPBindingKey,binding,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            return binding;
-        },^(id picker,id owner,id token){
-            if(!NSThread.isMainThread || !token || QQPBinding(picker)!=token)return;
-            QQPChatBinding *binding=token;binding.owner=owner;binding.assigning=NO;
-        });
-}
 QQPChatTarget *QQPCaptureChatTarget(UIViewController *picker, NSString **reason) {
-    if(!NSThread.isMainThread || !picker){if(reason)*reason=@"当前相册状态已失效，请返回聊天重新选图。";return nil;}
-    QQPChatBinding *binding=QQPBinding(picker);id owner=QQPVerifiedPickerOwner(picker,binding);
-    id context=QQPBoundContext(owner);NSString *uin=nil,*uid=nil;int type=0;
-    if(!binding || binding.assigning || !owner || !QQPReadIdentity(context,&uin,&uid,&type)){
-        if(reason)*reason=@"无法确认这个相册所属的聊天，请返回当前聊天重新打开相册；原图未发送。";
-        return nil;
-    }
-    if(QQPCaptureIsDisabled(picker) || QQPBinding(picker)!=binding ||
-       binding.assigning || binding.owner!=owner){
-        if(reason)*reason=@"读取聊天期间会话发生变化，未发送。";
+    id context=QQPPickerContext(picker);
+    NSString *uin=nil,*uid=nil;int type=0;
+    if(!context || !QQPReadIdentity(context,&uin,&uid,&type) ||
+       QQPPickerContext(picker)!=context){
+        if(reason)*reason=@"无法确认相册所属的当前聊天；原图未发送。";
         return nil;
     }
     QQPChatTarget *target=[QQPChatTarget emptyTarget];target.picker=picker;
-    target.owner=owner;target.context=context;target.binding=binding;
-    target.generation=binding.generation;target.uin=uin;target.uid=uid;target.chatType=type;
+    target.context=context;target.uin=uin;target.uid=uid;target.chatType=type;
     return target;
 }
 BOOL QQPChatTargetMatchesPicker(QQPChatTarget *target,UIViewController *picker) {
-    if(!NSThread.isMainThread || !picker || target.picker!=picker)return NO;
-    QQPChatBinding *binding=objc_getAssociatedObject(picker,QQPBindingKey);
-    id owner=QQPVerifiedPickerOwner(picker,binding),context=QQPBoundContext(owner);
-    if(!binding || binding!=target.binding || binding.assigning || binding.generation!=target.generation ||
-       !owner || owner!=target.owner || !context || context!=target.context)return NO;
+    if(!NSThread.isMainThread || !target || !picker || target.picker!=picker)return NO;
+    id context=QQPPickerContext(picker);
+    if(!context || context!=target.context)return NO;
     NSString *uin=nil,*uid=nil;int type=0;
     BOOL matches=QQPReadIdentity(context,&uin,&uid,&type) && type==target.chatType &&
                  [uin isEqualToString:target.uin] && [uid isEqualToString:target.uid];
-    return matches && !QQPCaptureIsDisabled(picker) && QQPBinding(picker)==binding &&
-           !binding.assigning && binding.owner==owner && binding.generation==target.generation;
+    return matches && QQPPickerContext(picker)==context;
 }
 BOOL QQPSendFilesToChat(NSArray<NSURL *> *files, QQPChatTarget *target,
                         UIViewController *picker, NSUInteger *submitted,

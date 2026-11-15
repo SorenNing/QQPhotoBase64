@@ -2,14 +2,14 @@
 
 作者：Ning · 版本：0.1.1 · iOS 15+
 
-QQ 相册底栏在“原图”旁加入圆圈“加密”开关。勾选后将选择的静态图片原始资源编码为 `.qqenc` JSON 文件，向本次相册所属聊天提交文件请求。当前源码为直发修复候选，尚未完成 Apple Swift 编译及 QQ 真机验证；已发布 0.1.0 包仍为旧转发确认实现。QQ 文件详情页遇到 `.qqenc` 文件显示“解密”，下载完整后可用 QuickLook 预览还原的图片。
+QQ 相册底栏在“原图”旁加入圆圈“加密”开关。勾选后将选择的静态图片原始资源编码为 `.qqenc` JSON 文件；仅在当前相册的聊天对象可被安全核实时尝试直发，否则提供手动分享编码文件。当前源码尚未经过 QQ 真机验证；已发布 0.1.0 包仍为旧转发确认实现。QQ 文件详情页遇到 `.qqenc` 文件显示“解密”，下载完整后可用 QuickLook 预览还原的图片。
 
 **Base64 是可逆编码，不提供保密性。** 本版没有 AES、密码或密钥。SHA256 用来检测文件损坏，不提供发送者认证。
 
 ## 使用
 
 1. 在 QQ 相册选择 1–9 张静态图片，勾选“加密”，再点原发送按钮。
-2. 等待资源导出。源码候选从当前相册回读 `context`，核对 setter 绑定及具体聊天对象，再调用 `AIFileManager sendFileWithPath:uin:uid:chatType:`；无法确认归属就停止。接口返回 void，仅表示调用结束，实际发送状态需在聊天中查看。
+2. 等待资源导出。仅当当前相册存在已核对返回类型的 `context` getter，且对象属于 `AIOChatContext`，才尝试 `AIFileManager sendFileWithPath:uin:uid:chatType:`；提交前再次核对。同版 QQ 若没有该 getter，将弹出“分享编码文件”选项，必须由用户手动确认目标，不会自动向当前聊天发送。接口返回 void，只表示本地调用结束，不是送达回执。
 3. 接收方先完整下载 `.qqenc`，在 QQ 文件详情点“解密”。双方均需插件支持。
 4. 关闭“加密”时保留 QQ 的普通图片发送路径。勾选状态下若选图接口不匹配或导出失败，停止此次发送并显示原因。
 
@@ -38,4 +38,4 @@ python3 tools/verify.py
 python3 tools/verify_packages_macos.py dist/*.deb
 ```
 
-`tests/codec_test.m` 直接链接生产 `QQPCodec.m`，检查已知摘要、原字节往返、恰好 32MiB 的合法 PNG 及损坏输入。`tests/weak_field_test.c` 测试实际字段所有权解析器；它只接受完整、受限的 symbolic-reference + Optional + weak 类型语法，其他编码会停止直发。`tests/context_fixture.swift` 调用生产 Swift 读取器，覆盖继承层、strong/weak、协议 weak、nil/替换、拒绝 unowned 与相邻失效 unowned；这个 Apple 测试已接入下一次构建，但当前尚未执行。`tools/verify.py` 不依赖第三方 Python 包，最终检查报告在 `build/` 和 `dist/`。
+`tests/codec_test.m` 直接链接生产 `QQPCodec.m`，检查已知摘要、原字节往返、恰好 32MiB 的合法 PNG 及损坏输入。旧 Swift 弱字段读取和测试保留为研究资料，不属于当前生产构建。`tools/verify.py` 不依赖第三方 Python 包，最终检查报告在 `build/` 和 `dist/`。

@@ -16,7 +16,7 @@ from xml.parsers.expat import ExpatError
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKERS = (b'QQPCodec', b'QQPSession', b'AIFileManager',
-           b'sendFileWithPath:uin:uid:chatType:', b'QQPContextInspector', b'QQENC1')
+           b'sendFileWithPath:uin:uid:chatType:', b'QQENC1')
 ARCHES = {0: 'arm64', 0x80000002: 'arm64e'}
 LIMIT = 128 * 1024 * 1024
 

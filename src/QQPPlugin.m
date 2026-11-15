@@ -4,6 +4,7 @@
 #import "QQPRuntime.h"
 #import "QQPImageIO.h"
 #import "QQPChat.h"
+#import "QQPCodec.h"
 
 static const void *QQPSessionKey=&QQPSessionKey;
 static const void *QQPControlKey=&QQPControlKey;
@@ -124,14 +125,57 @@ static void QQPLayoutBar(UIView *bar) {
     button.hidden=!fits;button.frame=target;
 }
 
+static BOOL QQPValidExports(NSArray<NSURL *> *files) {
+    if(!files.count || files.count>9)return NO;
+    for(NSURL *file in files){
+        @autoreleasepool {
+            if(![file isKindOfClass:NSURL.class] || !file.isFileURL ||
+               ![file.pathExtension.lowercaseString isEqualToString:@"qqenc"])return NO;
+            NSDictionary *attrs=[NSFileManager.defaultManager attributesOfItemAtPath:file.path error:nil];
+            if(![attrs[NSFileType] isEqual:NSFileTypeRegular] || ![attrs fileSize] ||
+               [attrs fileSize]>32ull*1024ull*1024ull*4ull/3ull+4096ull)return NO;
+            NSData *data=[NSData dataWithContentsOfURL:file options:NSDataReadingMappedIfSafe error:nil];
+            if(!data || ![QQPCodec decodeContainer:data error:nil])return NO;
+        }
+    }
+    return YES;
+}
+static void QQPOfferEncryptedShare(UIViewController *host, QQPSession *session,
+                                   NSArray<NSURL *> *files, NSString *reason) {
+    if(!host.viewIfLoaded.window || host.presentedViewController || !QQPValidExports(files)){
+        QQPDiscardExports(files);session.busy=NO;
+        return;
+    }
+    session.exports=files;session.busy=NO;session.submitted=YES;
+    UIAlertController *notice=[UIAlertController alertControllerWithTitle:@"无法确认当前聊天直发"
+        message:reason.length?reason:@"QQ直发接口不可用。可手动分享仅已编码的 .qqenc 文件，或取消；不会发送原图。"
+        preferredStyle:UIAlertControllerStyleAlert];
+    [notice addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    __weak UIViewController *weakHost=host;
+    __weak UIAlertController *weakNotice=notice;
+    [notice addAction:[UIAlertAction actionWithTitle:@"分享编码文件" style:UIAlertActionStyleDefault
+        handler:^(__unused UIAlertAction *action){
+            UIViewController *presenter=weakHost;
+            UIAlertController *alert=weakNotice;
+            void (^showShare)(void)=^{
+                if(!presenter.viewIfLoaded.window || presenter.presentedViewController)return;
+                UIActivityViewController *share=[[UIActivityViewController alloc]initWithActivityItems:files applicationActivities:nil];
+                [presenter presentViewController:share animated:YES completion:nil];
+            };
+            if(presenter.presentedViewController==alert)
+                [alert dismissViewControllerAnimated:YES completion:showShare];
+            else showShare();
+        }]];
+    [host presentViewController:notice animated:YES completion:nil];
+}
+
 // File submission uses the recipient captured from this picker.
 static BOOL QQPInterceptSend(UIView *bar) {
     QQPSession *s=QQPSessionForBar(bar);if(!s.selected)return NO;
     if(s.busy)return YES;
     UIViewController *presenter=QQPOwningController(bar);
-    if(s.submitted){QQPShowMessage(presenter,@"文件已提交",@"请返回聊天查看。此次相册已锁定，避免重复提交；发送更多图片请重新打开相册。" );return YES;}
+    if(s.submitted){QQPShowMessage(presenter,@"此次相册已处理",@"已提交文件请查看聊天；若选择了手动分享，请在分享界面确认收件人。发送更多图片请重新打开相册。" );return YES;}
     NSString *reason=nil;QQPChatTarget *target=QQPCaptureChatTarget(s.picker,&reason);
-    if(!target){QQPShowMessage(presenter,@"未发送",reason);return YES;}
     NSArray<PHAsset *> *assets=QQPSelectedPhotos(s);
     if(!assets.count){QQPShowMessage(presenter,@"未发送",@"请在相册选择1至9张静态图片；当前选图接口不受支持时，普通图片不会发送。" );return YES;}
     s.busy=YES;[bar setNeedsLayout];__weak UIView *weakBar=bar;__weak UIViewController *weakPresenter=presenter;
@@ -141,12 +185,23 @@ static BOOL QQPInterceptSend(UIView *bar) {
         s.task=nil;UIViewController *host=weakPresenter;
         if(!host.viewIfLoaded.window || host.presentedViewController){s.busy=NO;[weakBar setNeedsLayout];QQPDiscardExports(files);return;}
         if(!files.count){s.busy=NO;[weakBar setNeedsLayout];QQPShowMessage(host,@"未发送",error.localizedDescription?:@"图片处理失败。" );return;}
+        if(!target){
+            QQPOfferEncryptedShare(host,s,files,reason);
+            [weakBar setNeedsLayout];
+            return;
+        }
         NSString *failure=nil;NSUInteger submitted=0;
         BOOL complete=QQPSendFilesToChat(files,target,s.picker,&submitted,&failure);
-        s.busy=NO;s.submitted=submitted>0;if(submitted)s.exports=files;else QQPDiscardExports(files);
+        if(!complete && submitted==0){
+            QQPOfferEncryptedShare(host,s,files,failure);
+            [weakBar setNeedsLayout];
+            return;
+        }
+        s.busy=NO;s.submitted=submitted>0;
+        if(submitted)s.exports=files;else QQPDiscardExports(files);
         [weakBar setNeedsLayout];
         if(complete)QQPShowMessage(host,@"已提交到当前聊天",@"编码文件已交给QQ，请返回聊天查看发送状态。" );
-        else QQPShowMessage(host,submitted?@"提交中断，请检查聊天":@"未发送",failure?:@"QQ未接受此次文件提交。" );
+        else QQPShowMessage(host,@"提交中断，请检查聊天",failure?:@"QQ处理文件异常；请检查聊天记录，不要重复发送。" );
     });return YES;
 }
 
@@ -198,7 +253,6 @@ static void QQPCancelLeaving(id object) {
 }
 static void QQPInstallHooks(void) {
     static BOOL installed=NO;if(installed)return;installed=YES;
-    QQPInstallChatCapture();
     NSArray<NSString *> *barNames=@[@"QQImagePickerBottomBar",@"PhotoOperatorView.QQPhotoOperatorView",@"_TtC17PhotoOperatorView19QQPhotoOperatorView"];
     NSMutableSet *seen=[NSMutableSet set];
     for(NSString *name in barNames){
