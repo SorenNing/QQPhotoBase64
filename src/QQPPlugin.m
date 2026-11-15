@@ -174,7 +174,7 @@ static BOOL QQPInterceptSend(UIView *bar) {
     QQPSession *s=QQPSessionForBar(bar);if(!s.selected)return NO;
     if(s.busy)return YES;
     UIViewController *presenter=QQPOwningController(bar);
-    if(s.submitted){QQPShowMessage(presenter,@"此次相册已处理",@"已提交文件请查看聊天；若选择了手动分享，请在分享界面确认收件人。发送更多图片请重新打开相册。" );return YES;}
+    if(s.submitted)return YES;
     NSString *reason=nil;QQPChatTarget *target=QQPCaptureChatTarget(s.picker,&reason);
     NSArray<PHAsset *> *assets=QQPSelectedPhotos(s);
     if(!assets.count){QQPShowMessage(presenter,@"未发送",@"请在相册选择1至9张静态图片；当前选图接口不受支持时，普通图片不会发送。" );return YES;}
@@ -200,8 +200,7 @@ static BOOL QQPInterceptSend(UIView *bar) {
         s.busy=NO;s.submitted=submitted>0;
         if(submitted)s.exports=files;else QQPDiscardExports(files);
         [weakBar setNeedsLayout];
-        if(complete)QQPShowMessage(host,@"已提交到当前聊天",@"编码文件已交给QQ，请返回聊天查看发送状态。" );
-        else QQPShowMessage(host,@"提交中断，请检查聊天",failure?:@"QQ处理文件异常；请检查聊天记录，不要重复发送。" );
+        if(!complete)QQPShowMessage(host,@"提交中断，请检查聊天",failure?:@"QQ处理文件异常；请检查聊天记录，不要重复发送。" );
     });return YES;
 }
 
@@ -237,13 +236,46 @@ static BOOL QQPIsContainerPage(UIViewController *controller) {
     QQPPreviewContainer(path,host);
 }
 @end
+static CGRect QQPOpenWithOtherAppFrame(UIView *root) {
+    NSMutableArray<UIView *> *views=[NSMutableArray array];QQPCollectViews(root,views);
+    for(UIView *view in views){
+        if(view.hidden || view.alpha<0.01)continue;
+        NSString *text=nil;
+        if([view isKindOfClass:UIButton.class])text=((UIButton *)view).currentTitle;
+        else if([view isKindOfClass:UILabel.class])text=((UILabel *)view).text;
+        if(![text containsString:@"用其他应用打开"] && ![view.accessibilityLabel containsString:@"用其他应用打开"])continue;
+        UIView *anchor=view;
+        for(UIView *parent=view.superview;parent && parent!=root;parent=parent.superview){
+            if(parent.hidden || parent.alpha<0.01)break;
+            if([parent isKindOfClass:UIControl.class] ||
+               (CGRectGetWidth(parent.bounds)>=CGRectGetWidth(root.bounds)*0.5 &&
+                CGRectGetHeight(parent.bounds)>=36 && CGRectGetHeight(parent.bounds)<=110)){
+                anchor=parent;break;
+            }
+        }
+        CGRect frame=[anchor convertRect:anchor.bounds toView:root];
+        if(CGRectGetMinY(frame)>CGRectGetHeight(root.bounds)*0.5 &&
+           CGRectGetMaxY(frame)<=CGRectGetHeight(root.bounds)+2 &&
+           CGRectGetWidth(frame)>=40 && CGRectGetHeight(frame)>10){
+            if(anchor==view && [view isKindOfClass:UILabel.class])frame.origin.y-=22;
+            return frame;
+        }
+    }
+    return CGRectNull;
+}
 static void QQPLayoutFilePage(UIViewController *controller) {
     QQPDecodeButton *button=objc_getAssociatedObject(controller,QQPDecodeKey);
     if(!QQPIsContainerPage(controller)){button.hidden=YES;return;}
-    if(!button){button=[[QQPDecodeButton alloc]initWithFrame:CGRectZero];button.host=controller;objc_setAssociatedObject(controller,QQPDecodeKey,button,OBJC_ASSOCIATION_RETAIN_NONATOMIC);[controller.view addSubview:button];}
+    CGRect native=QQPOpenWithOtherAppFrame(controller.view);
+    if(CGRectIsNull(native)){button.hidden=YES;return;}
     UIEdgeInsets safe=controller.view.safeAreaInsets;
-    button.frame=CGRectMake(MAX(safe.left+12,CGRectGetWidth(controller.view.bounds)-safe.right-92),safe.top+12,80,40);
-    button.hidden=NO;
+    CGFloat width=104,height=44;
+    CGFloat x=CGRectGetMidX(native)-width/2,y=CGRectGetMinY(native)-height-28;
+    if(x<safe.left+12 || x+width>CGRectGetWidth(controller.view.bounds)-safe.right-12 ||
+       y<safe.top+12 || y+height>=CGRectGetMinY(native)){button.hidden=YES;return;}
+    if(!button){button=[[QQPDecodeButton alloc]initWithFrame:CGRectZero];button.host=controller;objc_setAssociatedObject(controller,QQPDecodeKey,button,OBJC_ASSOCIATION_RETAIN_NONATOMIC);[controller.view addSubview:button];}
+    button.frame=CGRectMake(x,y,width,height);button.layer.cornerRadius=height/2;
+    button.hidden=NO;[controller.view bringSubviewToFront:button];
 }
 static void QQPCancelLeaving(id object) {
     UIViewController *vc=object;UIViewController *picker=QQPFindPickerFromController(vc);

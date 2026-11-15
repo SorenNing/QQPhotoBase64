@@ -1,7 +1,8 @@
 #import "QQPImageIO.h"
 #import "QQPCodec.h"
 #import <ImageIO/ImageIO.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <objc/runtime.h>
+#import "QQPRuntime.h"
 
 static const NSUInteger QQPImageLimit=32*1024*1024;
 static NSURL *QQPWorkRoot(void) {
@@ -100,46 +101,99 @@ QQPExportTask *QQPExportImages(NSArray<PHAsset *> *assets,QQPExportCompletion co
     QQPExportNext(task,[assets copy],0,directory,[NSMutableArray array],completion);return task;
 }
 
-#import <QuickLook/QuickLook.h>
-#import <objc/runtime.h>
-
-@interface QQPPreviewSession : NSObject <QLPreviewControllerDataSource,QLPreviewControllerDelegate>
-@property(nonatomic,strong) NSURL *fileURL;
-@property(nonatomic,strong) NSURL *directory;
+static const void *QQPPreviewBusyKey=&QQPPreviewBusyKey;
+static const void *QQPPreviewTokenKey=&QQPPreviewTokenKey;
+@interface QQPImagePreview : UIViewController <UIScrollViewDelegate>
+@property(nonatomic,strong) UIImage *image;
+@property(nonatomic,strong) UIScrollView *zoomView;
+@property(nonatomic,strong) UIImageView *imageView;
+@property(nonatomic,strong) UIButton *closeButton;
 @end
-@implementation QQPPreviewSession
-- (NSInteger)numberOfPreviewItemsInPreviewController:(QLPreviewController *)controller{return 1;}
-- (id<QLPreviewItem>)previewController:(QLPreviewController *)controller previewItemAtIndex:(NSInteger)index{return self.fileURL;}
-- (void)previewControllerDidDismiss:(QLPreviewController *)controller{[[NSFileManager defaultManager]removeItemAtURL:self.directory error:nil];}
-- (void)dealloc{if(_directory)[[NSFileManager defaultManager]removeItemAtURL:_directory error:nil];}
+@implementation QQPImagePreview
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor=UIColor.blackColor;
+    UIScrollView *zoom=[[UIScrollView alloc]initWithFrame:self.view.bounds];
+    zoom.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+    zoom.delegate=self;zoom.minimumZoomScale=1;zoom.maximumZoomScale=4;
+    zoom.showsHorizontalScrollIndicator=NO;zoom.showsVerticalScrollIndicator=NO;
+    [self.view addSubview:zoom];self.zoomView=zoom;
+    UIImageView *imageView=[[UIImageView alloc]initWithImage:self.image];
+    imageView.contentMode=UIViewContentModeScaleAspectFit;
+    [zoom addSubview:imageView];self.imageView=imageView;
+    UIButton *close=[UIButton buttonWithType:UIButtonTypeSystem];
+    [close setTitle:@"关闭" forState:UIControlStateNormal];
+    [close setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    close.titleLabel.font=[UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
+    close.accessibilityLabel=@"关闭图片预览";
+    [close addTarget:self action:@selector(closePreview:) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:close];self.closeButton=close;
+}
+- (UIStatusBarStyle)preferredStatusBarStyle {return UIStatusBarStyleLightContent;}
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    self.closeButton.frame=CGRectMake(self.view.safeAreaInsets.left+12,self.view.safeAreaInsets.top+8,56,44);
+    if(self.zoomView.zoomScale==1){
+        CGSize size=self.image.size;CGSize bounds=self.zoomView.bounds.size;
+        if(size.width>0 && size.height>0 && bounds.width>0 && bounds.height>0){
+            CGFloat scale=MIN(bounds.width/size.width,bounds.height/size.height);
+            self.imageView.frame=CGRectMake(0,0,size.width*scale,size.height*scale);
+            self.zoomView.contentSize=self.imageView.bounds.size;
+        }
+    }
+    [self centerImage];[self.view bringSubviewToFront:self.closeButton];
+}
+- (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {return self.imageView;}
+- (void)scrollViewDidZoom:(UIScrollView *)scrollView {[self centerImage];}
+- (void)centerImage {
+    CGSize frame=self.zoomView.bounds.size;CGSize content=self.zoomView.contentSize;
+    self.zoomView.contentInset=UIEdgeInsetsMake(MAX(0,(frame.height-content.height)/2),
+        MAX(0,(frame.width-content.width)/2),MAX(0,(frame.height-content.height)/2),
+        MAX(0,(frame.width-content.width)/2));
+}
+- (void)closePreview:(id)sender {[self dismissViewControllerAnimated:YES completion:nil];}
 @end
-static const void *QQPPreviewKey=&QQPPreviewKey;
 void QQPPreviewContainer(NSString *path, UIViewController *presenter) {
     if(![path isKindOfClass:NSString.class] || !path.length || !presenter.viewIfLoaded.window || presenter.presentedViewController)return;
+    if([objc_getAssociatedObject(presenter,QQPPreviewBusyKey) boolValue])return;
+    NSObject *token=[NSObject new];
+    objc_setAssociatedObject(presenter,QQPPreviewTokenKey,token,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(presenter,QQPPreviewBusyKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     __weak UIViewController *weakPresenter=presenter;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0),^{@autoreleasepool{
         NSError *error=nil;
         NSDictionary *attributes=[[NSFileManager defaultManager]attributesOfItemAtPath:path error:&error];
         unsigned long long length=[attributes fileSize];
         NSData *container=nil;
-        if(length && length<=32u*1024u*1024u*4u/3u+4096u)container=[NSData dataWithContentsOfFile:path options:NSDataReadingMappedIfSafe error:&error];
+        if(length && length<=32u*1024u*1024u*4u/3u+4096u)
+            container=[NSData dataWithContentsOfFile:path options:NSDataReadingMappedIfSafe error:&error];
         NSData *raw=container?[QQPCodec decodeContainer:container error:&error]:nil;
-        if(!raw){dispatch_async(dispatch_get_main_queue(),^{QQPShowMessage(weakPresenter,@"无法解密",error.localizedDescription?:@"请先下载完整的.qqenc文件，或检查文件大小。" );});return;}
-        CGImageSourceRef source=CGImageSourceCreateWithData((__bridge CFDataRef)raw,NULL);
-        NSString *uti=source?(__bridge NSString *)CGImageSourceGetType(source):nil;
-        NSString *ext=uti?[UTType typeWithIdentifier:uti].preferredFilenameExtension:nil;
+        if(!raw){dispatch_async(dispatch_get_main_queue(),^{
+            UIViewController *host=weakPresenter;
+            if(objc_getAssociatedObject(host,QQPPreviewTokenKey)!=token)return;
+            objc_setAssociatedObject(host,QQPPreviewBusyKey,@NO,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            QQPShowMessage(host,@"无法解密",error.localizedDescription?:@"请先下载完整的.qqenc文件，或检查文件大小。" );
+        });return;}
+        CGImageSourceRef source=CGImageSourceCreateWithData((__bridge CFDataRef)raw,
+            (__bridge CFDictionaryRef)@{(id)kCGImageSourceShouldCache:@NO});
+        CGImageRef thumbnail=source?CGImageSourceCreateThumbnailAtIndex(source,0,
+            (__bridge CFDictionaryRef)@{(id)kCGImageSourceCreateThumbnailFromImageAlways:@YES,
+                (id)kCGImageSourceCreateThumbnailWithTransform:@YES,
+                (id)kCGImageSourceThumbnailMaxPixelSize:@2048}):NULL;
         if(source)CFRelease(source);
-        if(!ext.length)ext=@"img";
-        NSURL *dir=[NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[@"QQPhotoBase64/decoded-" stringByAppendingString:NSUUID.UUID.UUIDString]] isDirectory:YES];
-        [[NSFileManager defaultManager]createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:@{NSFileProtectionKey:NSFileProtectionCompleteUntilFirstUserAuthentication} error:&error];
-        NSURL *file=[dir URLByAppendingPathComponent:[@"原图" stringByAppendingPathExtension:ext]];
-        BOOL written=[raw writeToURL:file options:NSDataWritingAtomic|NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication error:&error];
+        UIImage *image=thumbnail?[UIImage imageWithCGImage:thumbnail]:nil;
+        if(thumbnail)CGImageRelease(thumbnail);
         dispatch_async(dispatch_get_main_queue(),^{
             UIViewController *host=weakPresenter;
-            if(!written || !host.viewIfLoaded.window || host.presentedViewController){[[NSFileManager defaultManager]removeItemAtURL:dir error:nil];if(!written)QQPShowMessage(host,@"无法打开",error.localizedDescription);return;}
-            QQPPreviewSession *session=[QQPPreviewSession new];session.fileURL=file;session.directory=dir;
-            QLPreviewController *preview=[QLPreviewController new];preview.dataSource=session;preview.delegate=session;
-            objc_setAssociatedObject(preview,QQPPreviewKey,session,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if(objc_getAssociatedObject(host,QQPPreviewTokenKey)!=token)return;
+            objc_setAssociatedObject(host,QQPPreviewBusyKey,@NO,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            id model=QQPGetObject(host,@"curFileModel");
+            NSString *current=QQPGetObject(model,@"strFilePath");
+            if(![current isKindOfClass:NSString.class] || ![current isEqualToString:path] ||
+               !host.viewIfLoaded.window || host.presentedViewController)return;
+            if(!image){QQPShowMessage(host,@"无法打开",@"图片解码失败，请检查文件是否完整。" );return;}
+            QQPImagePreview *preview=[QQPImagePreview new];preview.image=image;
+            preview.modalPresentationStyle=UIModalPresentationFullScreen;
             [host presentViewController:preview animated:YES completion:nil];
         });
     }});

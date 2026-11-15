@@ -17,7 +17,7 @@ for ARCH in arm64 arm64e; do
   done
   xcrun --sdk iphoneos clang -target "${ARCH}-apple-ios15.0" -isysroot "$SDK" \
     -dynamiclib -framework Foundation -framework UIKit -framework Photos \
-    -framework ImageIO -framework QuickLook -framework UniformTypeIdentifiers \
+    -framework ImageIO \
     -framework CoreGraphics -framework QuartzCore -Wl,-fixup_chains \
     -Wl,-install_name,@rpath/QQPhotoBase64.dylib \
     "${OBJECTS[@]}" -o "build/QQPhotoBase64-${ARCH}.dylib"
