@@ -6,7 +6,7 @@ typedef void (^QQPExportCompletion)(NSArray<NSURL *> * _Nullable files, NSError 
 @interface QQPExportTask : NSObject
 - (void)cancel;
 @end
-QQPExportTask *QQPExportImages(NSArray<PHAsset *> *assets, QQPExportCompletion completion);
+QQPExportTask *QQPExportMedia(NSArray<PHAsset *> *assets, QQPExportCompletion completion);
 void QQPDiscardExports(NSArray<NSURL *> * _Nullable files);
 void QQPCleanExpiredFiles(void);
 void QQPPreviewContainer(NSString *path, UIViewController *presenter);

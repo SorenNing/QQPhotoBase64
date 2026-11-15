@@ -31,7 +31,7 @@ def main():
         control=(ROOT/'control').read_text().replace('Architecture: iphoneos-arm64e','Architecture: '+arch)
         payload={prefix+'Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.dylib':(dylib,0o755),prefix+'Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.plist':(plist,0o644)}
         package=ar([('debian-binary',b'2.0\n'),('control.tar.gz',tar_bytes({'control':(control.encode(),0o644)})),('data.tar.gz',tar_bytes(payload))])
-        name=f'com.ning.qqphotobase64_0.1.2_{arch}.deb';(out/name).write_bytes(package)
+        name=f'com.ning.qqphotobase64_0.1.3_{arch}.deb';(out/name).write_bytes(package)
         records.append({'name':name,'bytes':len(package),'sha256':hashlib.sha256(package).hexdigest(),'layout':'rootless' if prefix else 'RootHide-loader-layout'})
     (ROOT/'build/package-manifest.json').write_text(json.dumps(records,indent=2))
 if __name__=='__main__':main()

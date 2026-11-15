@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build dist
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
-SOURCES=(src/QQPRuntime.m src/QQPCodec.m src/QQPImageIO.m src/QQPPlugin.m src/QQPChat.m)
+SOURCES=(src/QQPRuntime.m src/QQPCodec.m src/QQPImageIO.m src/QQPVideoPreview.m src/QQPPlugin.m src/QQPChat.m)
 for ARCH in arm64 arm64e; do
   mkdir -p "build/${ARCH}"
   OBJECTS=()
@@ -17,7 +17,7 @@ for ARCH in arm64 arm64e; do
   done
   xcrun --sdk iphoneos clang -target "${ARCH}-apple-ios15.0" -isysroot "$SDK" \
     -dynamiclib -framework Foundation -framework UIKit -framework Photos \
-    -framework ImageIO \
+    -framework ImageIO -framework AVFoundation \
     -framework CoreGraphics -framework QuartzCore -Wl,-fixup_chains \
     -Wl,-install_name,@rpath/QQPhotoBase64.dylib \
     "${OBJECTS[@]}" -o "build/QQPhotoBase64-${ARCH}.dylib"

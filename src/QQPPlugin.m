@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <Photos/Photos.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import "QQPRuntime.h"
 #import "QQPImageIO.h"
 #import "QQPChat.h"
@@ -37,7 +38,7 @@ static const void *QQPDecodeKey=&QQPDecodeKey;
         self.imageView.contentMode=UIViewContentModeScaleAspectFit;
         self.titleLabel.textAlignment=NSTextAlignmentLeft;self.tintColor=UIColor.whiteColor;
         [self addTarget:self action:@selector(toggle:) forControlEvents:UIControlEventTouchUpInside];
-        self.accessibilityLabel=@"加密，Base64图片文件";
+        self.accessibilityLabel=@"加密，Base64图片或视频文件";
     }return self;
 }
 - (CGRect)imageRectForContentRect:(CGRect)rect {
@@ -77,7 +78,7 @@ static void QQPCollectViews(UIView *root,NSMutableArray<UIView *> *views) {
         for(UIView *child in [views[i].subviews copy]){if(views.count>=384)return;[views addObject:child];}
     }
 }
-static NSArray<PHAsset *> *QQPSelectedPhotos(QQPSession *s) {
+static NSArray<PHAsset *> *QQPSelectedMedia(QQPSession *s) {
     UIViewController *picker=s.picker;id objects=QQPGetObject(picker,@"selectedList");
     if(![objects isKindOfClass:NSArray.class]){
         NSMutableArray<UIView *> *views=[NSMutableArray array];QQPCollectViews(picker.viewIfLoaded,views);
@@ -93,7 +94,8 @@ static NSArray<PHAsset *> *QQPSelectedPhotos(QQPSession *s) {
         if(!ph)ph=QQPGetObject(object,@"phAsset");
         if(![ph isKindOfClass:PHAsset.class])return nil;
         PHAsset *photo=(PHAsset *)ph;
-        if(photo.mediaType!=PHAssetMediaTypeImage || (photo.mediaSubtypes&PHAssetMediaSubtypePhotoLive))return nil;
+        if(photo.mediaType!=PHAssetMediaTypeVideo &&
+           (photo.mediaType!=PHAssetMediaTypeImage || (photo.mediaSubtypes&PHAssetMediaSubtypePhotoLive)))return nil;
         [result addObject:photo];
     }
     return [result copy];
@@ -132,10 +134,15 @@ static BOOL QQPValidExports(NSArray<NSURL *> *files) {
             if(![file isKindOfClass:NSURL.class] || !file.isFileURL ||
                ![file.pathExtension.lowercaseString isEqualToString:@"qqenc"])return NO;
             NSDictionary *attrs=[NSFileManager.defaultManager attributesOfItemAtPath:file.path error:nil];
-            if(![attrs[NSFileType] isEqual:NSFileTypeRegular] || ![attrs fileSize] ||
-               [attrs fileSize]>32ull*1024ull*1024ull*4ull/3ull+4096ull)return NO;
-            NSData *data=[NSData dataWithContentsOfURL:file options:NSDataReadingMappedIfSafe error:nil];
-            if(!data || ![QQPCodec decodeContainer:data error:nil])return NO;
+            unsigned long long length=[attrs fileSize];
+            if(![attrs[NSFileType] isEqual:NSFileTypeRegular] || !length)return NO;
+            if([QQPCodec isVideoContainerAtURL:file]){
+                if(![QQPCodec validateVideoContainerAtURL:file error:nil])return NO;
+            }else{
+                if(length>32ull*1024ull*1024ull*4ull/3ull+4096ull)return NO;
+                NSData *data=[NSData dataWithContentsOfURL:file options:NSDataReadingMappedIfSafe error:nil];
+                if(!data || ![QQPCodec decodeContainer:data error:nil])return NO;
+            }
         }
     }
     return YES;
@@ -169,6 +176,27 @@ static void QQPOfferEncryptedShare(UIViewController *host, QQPSession *session,
     [host presentViewController:notice animated:YES completion:nil];
 }
 
+static void QQPReturnToChat(QQPSession *session) {
+    UIViewController *picker=session.picker;
+    if(!picker || !picker.viewIfLoaded.window || picker.presentedViewController)return;
+    SEL dismiss=NSSelectorFromString(@"dismissVC");
+    if(QQPClassNamed(picker,@"NTAIOPhotoMediaPickerController") &&
+       QQPMethodMatches(object_getClass(picker),dismiss,"v",@[])){
+        ((void(*)(id,SEL))objc_msgSend)(picker,dismiss);
+        return;
+    }
+    UIViewController *modal=picker;
+    for(NSUInteger i=0;i<8 && modal;i++,modal=modal.parentViewController){
+        if(modal.presentingViewController && modal.viewIfLoaded.window){
+            [modal dismissViewControllerAnimated:YES completion:nil];return;
+        }
+    }
+    UINavigationController *nav=picker.navigationController;
+    NSArray<UIViewController *> *stack=nav.viewControllers;
+    if(stack.count>=2 && stack.lastObject==picker && nav.viewIfLoaded.window &&
+       QQPClassNamed(stack[stack.count-2],@"NTAIOChat.NTAIOChatViewController"))
+        [nav popViewControllerAnimated:YES];
+}
 // File submission uses the recipient captured from this picker.
 static BOOL QQPInterceptSend(UIView *bar) {
     QQPSession *s=QQPSessionForBar(bar);if(!s.selected)return NO;
@@ -176,11 +204,11 @@ static BOOL QQPInterceptSend(UIView *bar) {
     UIViewController *presenter=QQPOwningController(bar);
     if(s.submitted)return YES;
     NSString *reason=nil;QQPChatTarget *target=QQPCaptureChatTarget(s.picker,&reason);
-    NSArray<PHAsset *> *assets=QQPSelectedPhotos(s);
-    if(!assets.count){QQPShowMessage(presenter,@"未发送",@"请在相册选择1至9张静态图片；当前选图接口不受支持时，普通图片不会发送。" );return YES;}
+    NSArray<PHAsset *> *assets=QQPSelectedMedia(s);
+    if(!assets.count){QQPShowMessage(presenter,@"未发送",@"请在相册选择1至9项图片或视频；实况照片及不支持的资源不会发送。" );return YES;}
     s.busy=YES;[bar setNeedsLayout];__weak UIView *weakBar=bar;__weak UIViewController *weakPresenter=presenter;
     NSUInteger generation=++s.generation;
-    s.task=QQPExportImages(assets,^(NSArray<NSURL *> *files,NSError *error){
+    s.task=QQPExportMedia(assets,^(NSArray<NSURL *> *files,NSError *error){
         if(generation!=s.generation){QQPDiscardExports(files);return;}
         s.task=nil;UIViewController *host=weakPresenter;
         if(!host.viewIfLoaded.window || host.presentedViewController){s.busy=NO;[weakBar setNeedsLayout];QQPDiscardExports(files);return;}
@@ -200,7 +228,8 @@ static BOOL QQPInterceptSend(UIView *bar) {
         s.busy=NO;s.submitted=submitted>0;
         if(submitted)s.exports=files;else QQPDiscardExports(files);
         [weakBar setNeedsLayout];
-        if(!complete)QQPShowMessage(host,@"提交中断，请检查聊天",failure?:@"QQ处理文件异常；请检查聊天记录，不要重复发送。" );
+        if(complete && submitted==files.count)QQPReturnToChat(s);
+        else QQPShowMessage(host,@"提交中断，请检查聊天",failure?:@"QQ处理文件异常；请检查聊天记录，不要重复发送。" );
     });return YES;
 }
 

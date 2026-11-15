@@ -93,8 +93,8 @@ BOOL QQPSendFilesToChat(NSArray<NSURL *> *files, QQPChatTarget *target,
         NSString *path=file.path.stringByStandardizingPath;
         NSDictionary *attributes=[NSFileManager.defaultManager attributesOfItemAtPath:path error:NULL];
         if(![attributes[NSFileType] isEqual:NSFileTypeRegular] || !attributes.fileSize ||
-           attributes.fileSize>32ull*1024ull*1024ull*4ull/3ull+4096ull || [seen containsObject:path]) {
-            if(reason)*reason=@"编码文件缺失、过大或重复，未提交文件。";
+           [seen containsObject:path]) {
+            if(reason)*reason=@"编码文件缺失或重复，未提交文件。";
             return NO;
         }
         [seen addObject:path];[paths addObject:path];

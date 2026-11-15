@@ -3,6 +3,8 @@
 #import <ImageIO/ImageIO.h>
 #import <objc/runtime.h>
 #import "QQPRuntime.h"
+#import "QQPVideoPreview.h"
+#include <limits.h>
 
 static const NSUInteger QQPImageLimit=32*1024*1024;
 static NSURL *QQPWorkRoot(void) {
@@ -43,10 +45,20 @@ void QQPShowMessage(UIViewController *presenter, NSString *title, NSString *mess
 static void QQPFinish(QQPExportCompletion completion, NSArray<NSURL *> *files, NSError *error) {
     dispatch_async(dispatch_get_main_queue(),^{completion(files,error);});
 }
-static PHAssetResource *QQPStillResource(PHAsset *asset) {
-    if(asset.mediaType!=PHAssetMediaTypeImage || (asset.mediaSubtypes&PHAssetMediaSubtypePhotoLive))return nil;
-    for(PHAssetResource *resource in [PHAssetResource assetResourcesForAsset:asset])if(resource.type==PHAssetResourceTypePhoto)return resource;
-    return nil;
+static PHAssetResource *QQPMediaResource(PHAsset *asset) {
+    BOOL still=asset.mediaType==PHAssetMediaTypeImage &&
+        !(asset.mediaSubtypes&PHAssetMediaSubtypePhotoLive);
+    BOOL video=asset.mediaType==PHAssetMediaTypeVideo;
+    if(!still && !video)return nil;
+    PHAssetResource *fallback=nil;
+    for(PHAssetResource *resource in [PHAssetResource assetResourcesForAsset:asset]){
+        if(still && resource.type==PHAssetResourceTypePhoto)return resource;
+        if(video){
+            if(resource.type==PHAssetResourceTypeVideo)return resource;
+            if(resource.type==PHAssetResourceTypeFullSizeVideo)fallback=resource;
+        }
+    }
+    return fallback;
 }
 static void QQPAbort(NSURL *directory,QQPExportCompletion completion,NSError *error) {
     [NSFileManager.defaultManager removeItemAtURL:directory error:NULL];QQPFinish(completion,nil,error?:QQPIOError(@"已取消，未发送。"));
@@ -54,8 +66,13 @@ static void QQPAbort(NSURL *directory,QQPExportCompletion completion,NSError *er
 static void QQPExportNext(QQPExportTask *task,NSArray<PHAsset *> *assets,NSUInteger index,NSURL *directory,NSMutableArray<NSURL *> *files,QQPExportCompletion completion) {
     if(task.cancelled){QQPAbort(directory,completion,nil);return;}
     if(index>=assets.count){QQPFinish(completion,[files copy],nil);return;}
-    PHAssetResource *resource=QQPStillResource(assets[index]);
-    if(!resource){QQPAbort(directory,completion,QQPIOError(@"当前只支持静态图片，视频和实况照片未发送。"));return;}
+    PHAsset *asset=assets[index];BOOL video=asset.mediaType==PHAssetMediaTypeVideo;
+    PHAssetResource *resource=QQPMediaResource(asset);
+    if(!resource){QQPAbort(directory,completion,QQPIOError(@"仅支持静态图片和 MP4/MOV/M4V 视频；实况照片暂不支持。"));return;}
+    NSString *extension=resource.originalFilename.pathExtension.lowercaseString;
+    if(video && ![@[@"mp4",@"mov",@"m4v"] containsObject:extension]){
+        QQPAbort(directory,completion,QQPIOError(@"视频文件格式不支持，请选择 MP4/MOV/M4V。"));return;
+    }
     NSURL *rawURL=[directory URLByAppendingPathComponent:[NSString stringWithFormat:@"raw-%lu",(unsigned long)index]];
     if(![NSFileManager.defaultManager createFileAtPath:rawURL.path contents:nil attributes:@{NSFileProtectionKey:NSFileProtectionCompleteUntilFirstUserAuthentication}]){
         QQPAbort(directory,completion,QQPIOError(@"不能创建临时文件。"));return;
@@ -63,14 +80,16 @@ static void QQPExportNext(QQPExportTask *task,NSArray<PHAsset *> *assets,NSUInte
     NSError *openError=nil;NSFileHandle *handle=[NSFileHandle fileHandleForWritingToURL:rawURL error:&openError];
     if(!handle){QQPAbort(directory,completion,openError);return;}
     PHAssetResourceRequestOptions *options=[PHAssetResourceRequestOptions new];options.networkAccessAllowed=YES;
-    NSObject *lock=[NSObject new];__block NSUInteger size=0;__block NSError *writeError=nil;
+    NSObject *lock=[NSObject new];__block unsigned long long size=0;__block NSError *writeError=nil;
     __block PHAssetResourceDataRequestID request=0;__block BOOL ended=NO;
     task.cancelRequest=^{PHAssetResourceDataRequestID current=0;@synchronized(lock){if(!ended)current=request;}if(current)[PHAssetResourceManager.defaultManager cancelDataRequest:current];};
     PHAssetResourceDataRequestID started=[PHAssetResourceManager.defaultManager requestDataForAssetResource:resource options:options dataReceivedHandler:^(NSData *part){
         PHAssetResourceDataRequestID cancel=0;
         @synchronized(lock){
             if(task.cancelled || writeError)return;
-            if(part.length>QQPImageLimit-size)writeError=QQPIOError(@"单张图片超过32MB，已停止处理。");
+            if((video && part.length>ULLONG_MAX-size) ||
+               (!video && part.length>QQPImageLimit-size))
+                writeError=QQPIOError(video?@"视频长度超出系统可表示范围。":@"单张图片超过32MB，已停止处理。");
             else {NSError *error=nil;if(![handle writeData:part error:&error])writeError=error?:QQPIOError(@"写入原图失败。");else size+=part.length;}
             if(writeError)cancel=request;
         }
@@ -80,22 +99,28 @@ static void QQPExportNext(QQPExportTask *task,NSArray<PHAsset *> *assets,NSUInte
         task.cancelRequest=nil;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{@autoreleasepool{
             if(task.cancelled){QQPAbort(directory,completion,nil);return;}
-            NSError *finalError=error;NSData *raw=finalError?nil:[NSData dataWithContentsOfURL:rawURL options:NSDataReadingMappedIfSafe error:&finalError];
-            NSData *container=raw?[QQPCodec encodeImageData:raw error:&finalError]:nil;
-            if(task.cancelled){QQPAbort(directory,completion,nil);return;}
-            NSURL *output=[directory URLByAppendingPathComponent:[NSString stringWithFormat:@"图片-%02lu.qqenc",(unsigned long)index+1]];
-            if(container && ![container writeToURL:output options:NSDataWritingAtomic|NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication error:&finalError])container=nil;
+            NSError *finalError=error;
+            NSURL *output=[directory URLByAppendingPathComponent:[NSString stringWithFormat:@"%@-%02lu.qqenc",video?@"视频":@"图片",(unsigned long)index+1]];
+            BOOL encoded=NO;
+            if(!finalError && video){
+                encoded=[QQPCodec encodeVideoAtURL:rawURL toURL:output extension:extension error:&finalError];
+            } else if(!finalError){
+                NSData *raw=[NSData dataWithContentsOfURL:rawURL options:NSDataReadingMappedIfSafe error:&finalError];
+                NSData *container=raw?[QQPCodec encodeImageData:raw error:&finalError]:nil;
+                encoded=container && [container writeToURL:output options:NSDataWritingAtomic|NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication error:&finalError];
+            }
             [NSFileManager.defaultManager removeItemAtURL:rawURL error:NULL];
-            if(!container){QQPAbort(directory,completion,finalError?:QQPIOError(@"图片格式不支持，未发送。"));return;}
+            if(task.cancelled){QQPAbort(directory,completion,nil);return;}
+            if(!encoded){QQPAbort(directory,completion,finalError?:QQPIOError(@"媒体格式不支持，未发送。"));return;}
             [files addObject:output];QQPExportNext(task,assets,index+1,directory,files,completion);
         }});
     }];
     BOOL cancel=NO;@synchronized(lock){if(!ended){request=started;cancel=task.cancelled||writeError!=nil;}}
     if(cancel)[PHAssetResourceManager.defaultManager cancelDataRequest:started];
 }
-QQPExportTask *QQPExportImages(NSArray<PHAsset *> *assets,QQPExportCompletion completion) {
+QQPExportTask *QQPExportMedia(NSArray<PHAsset *> *assets,QQPExportCompletion completion) {
     QQPExportTask *task=[QQPExportTask new];
-    if(!assets.count || assets.count>9){QQPFinish(completion,nil,QQPIOError(@"请一次选择1至9张静态图片。"));return task;}
+    if(!assets.count || assets.count>9){QQPFinish(completion,nil,QQPIOError(@"请一次选择1至9项静态图片或视频。"));return task;}
     NSURL *directory=[QQPWorkRoot() URLByAppendingPathComponent:NSUUID.UUID.UUIDString isDirectory:YES];NSError *error=nil;
     if(![NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:@{NSFileProtectionKey:NSFileProtectionCompleteUntilFirstUserAuthentication} error:&error]){QQPFinish(completion,nil,error);return task;}
     QQPExportNext(task,[assets copy],0,directory,[NSMutableArray array],completion);return task;
@@ -164,6 +189,35 @@ void QQPPreviewContainer(NSString *path, UIViewController *presenter) {
         NSError *error=nil;
         NSDictionary *attributes=[[NSFileManager defaultManager]attributesOfItemAtPath:path error:&error];
         unsigned long long length=[attributes fileSize];
+        if(length && [QQPCodec isVideoContainerAtURL:[NSURL fileURLWithPath:path]]){
+            NSURL *dir=[QQPWorkRoot() URLByAppendingPathComponent:[@"decoded-" stringByAppendingString:NSUUID.UUID.UUIDString] isDirectory:YES];
+            NSString *extension=nil;
+            NSURL *candidate=[dir URLByAppendingPathComponent:@"video"];
+            BOOL ready=[NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES
+                 attributes:@{NSFileProtectionKey:NSFileProtectionCompleteUntilFirstUserAuthentication} error:&error] &&
+                 [QQPCodec decodeVideoAtURL:[NSURL fileURLWithPath:path] toURL:candidate extension:&extension error:&error];
+            NSURL *videoURL=ready?[dir URLByAppendingPathComponent:[@"video" stringByAppendingPathExtension:extension]]:nil;
+            if(ready && ![NSFileManager.defaultManager moveItemAtURL:candidate toURL:videoURL error:&error])ready=NO;
+            if(!ready)[NSFileManager.defaultManager removeItemAtURL:dir error:nil];
+            dispatch_async(dispatch_get_main_queue(),^{
+                UIViewController *host=weakPresenter;
+                if(objc_getAssociatedObject(host,QQPPreviewTokenKey)!=token){
+                    [NSFileManager.defaultManager removeItemAtURL:dir error:nil];return;
+                }
+                objc_setAssociatedObject(host,QQPPreviewBusyKey,@NO,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                id model=QQPGetObject(host,@"curFileModel");NSString *current=QQPGetObject(model,@"strFilePath");
+                if(!ready || ![current isKindOfClass:NSString.class] || ![current isEqualToString:path] ||
+                   !host.viewIfLoaded.window || host.presentedViewController){
+                    [NSFileManager.defaultManager removeItemAtURL:dir error:nil];
+                    if(!ready)QQPShowMessage(host,@"无法解码视频",error.localizedDescription?:@"文件损坏或尚未完整下载。");
+                    return;
+                }
+                UIViewController *preview=QQPCreateVideoPreview(videoURL,dir);
+                if(!preview){[NSFileManager.defaultManager removeItemAtURL:dir error:nil];return;}
+                preview.modalPresentationStyle=UIModalPresentationFullScreen;
+                [host presentViewController:preview animated:YES completion:nil];
+            });return;
+        }
         NSData *container=nil;
         if(length && length<=32u*1024u*1024u*4u/3u+4096u)
             container=[NSData dataWithContentsOfFile:path options:NSDataReadingMappedIfSafe error:&error];
