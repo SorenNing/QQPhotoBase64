@@ -85,13 +85,25 @@ private func qqpField(_ object: NSObject, declaringClass: AnyClass,
         match = (index - inherited, type)
     }
     guard let selected = match else { return nil }
+    // Swift's ObjC-heritage ClassImpl.childOffset indexes class_copyIvarList.
+    // Refuse an absent/reordered slot before asking the runtime to load it.
+    var ivarCount: UInt32 = 0
+    guard let ivars = class_copyIvarList(declaringClass, &ivarCount) else { return nil }
+    defer { free(UnsafeMutableRawPointer(ivars)) }
+    guard selected.0 >= 0, selected.0 < Int(ivarCount),
+          ivarCount == UInt32(total - inherited),
+          let ivarName = ivar_getName(ivars[selected.0]),
+          String(cString: ivarName) == wanted,
+          ivar_getOffset(ivars[selected.0]) >= 0,
+          UInt(ivar_getOffset(ivars[selected.0])) < UInt(class_getInstanceSize(declaringClass))
+    else { return nil }
     var name: UnsafePointer<CChar>?
-    var free: QQPNameFree?
+    var fieldNameFree: QQPNameFree?
     let value: Any = withExtendedLifetime(object) {
         qqpChild(of: object, type: declaringClass, index: selected.0,
-                 outName: &name, outFreeFunc: &free)
+                 outName: &name, outFreeFunc: &fieldNameFree)
     }
-    defer { free?(name) }
+    defer { fieldNameFree?(name) }
     guard name.map({ String(cString: $0) }) == wanted else { return nil }
     let result: NSObject?
     if let optional = value as? QQPOptionalObject { result = optional.object }

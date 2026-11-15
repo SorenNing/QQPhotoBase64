@@ -16,4 +16,7 @@ cat src/QQPContextInspector.swift tests/context_fixture.swift > build/main.swift
 xcrun --sdk macosx swiftc -swift-version 5 -O -g -DQQP_CONTEXT_TEST \
   -import-objc-header src/QQPReflection.h build/main.swift build/weak-field-macos.o \
   -o build/context-fixture 2>&1 | tee build/context-fixture-build.log
-build/context-fixture 2> >(tee build/context-fixture.log >&2) | tee build/context-fixture.json
+# Merge stderr into the pipeline so tee finishes writing before the step exits.
+# qqpCheck writes its line marker before evaluating each runtime field read.
+build/context-fixture 2>&1 | tee build/context-fixture.log
+python3 -c 'import json,pathlib; p=pathlib.Path("build/context-fixture.log"); line=p.read_text().splitlines()[-1]; assert json.loads(line)["passed"] is True; pathlib.Path("build/context-fixture.json").write_text(line+"\n")'
