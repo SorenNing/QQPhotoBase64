@@ -1,10 +1,10 @@
 {
   "files": {
-    ".github/workflows/build.yml": "3ed8414665323d1530c43da4f1001505829f3995cf935b7bf58a69d766391d30",
+    ".github/workflows/build.yml": "d28a854b259f6f1e950812e8ce36cb593224cb60948e0f2968f939b2b63d2edd",
     ".gitignore": "3945b10ab016b1c9c53a18f492b7876cab70eb197360381ba3043068fa86c614",
-    "README.md": "5fd8114f86e5f72c98084edf4d7f3eb55adbc5c50006bdb0f8154359da285f9c",
+    "README.md": "aba6f141ea4abcfdce6d83ad2409ceee9249264117541bdedadae5903e1a5e90",
     "SOURCE-STATUS.md": "c3316ca9570cf9ed8c765f7a03fbb2833b9b28da67ec8be17c9b5932cdcd90af",
-    "control": "7c2f66b87f7687b8a8a1f556588069378a0d28cf5eaf7b8bf67e0c32d73988b9",
+    "control": "342b50b49c3fbd43cc4a4c9125fea3cd4fd456df12aacf2e1a9f0a6fe20dacf3",
     "layout/Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64.plist": "6121cd82814dfde5471a0f2b01d0cbbfb8f9955e47dfb81c8f1040d7c40a9b54",
     "src/QQPChat.h": "76f0aa21161e1478038038998f421d1bb1e6e016a8b90315b4fafe3c7a14fb5d",
     "src/QQPChat.m": "458f223d9bce42b8b2ba7b41c02273232dee156a6ac969dcb10727bada0b6506",
@@ -25,9 +25,9 @@
     "tests/weak_field_test.c": "65e08b559c312c126b1938ced72f498c3046d13ae6f32ed47ea03ce1bee91302",
     "tools/build-macos.sh": "2d5bfbaf5a8a87b06ca2ace89efd15b55c653126bc40d0853032deeae45c5ab8",
     "tools/make_fixture.py": "2b8ff1858191b18dc150a303f2625883291499db0e1a520bd33779534804db24",
-    "tools/package.py": "2970431c23433767a6add58d82407b37ede40afb93e361381c6a8b492961ff20",
+    "tools/package.py": "5e932258ea5d6c3c65a58cbd64997e61570a0e76b1c422c2b472f4b93f71ec07",
     "tools/test-macos.sh": "6976c48032d58d5490e10ecee62e78645b4200757ad5dfe91c0383eaa1a1a30d",
-    "tools/verify.py": "d6a1f7f17725f35b903382a9b990a245873212593fde4060cae3d0a1f97c9a13",
+    "tools/verify.py": "49414e3fee00a612a4e60e7a98e205ced8fb8d4a013f992ae1e3021f776b7b94",
     "tools/verify_packages_macos.py": "b8ec04c7c1fc33779500f4dc61455eb393d4ebd52ff00fc456a6e642c7b61c89",
     "tools/verify_source.py": "ec22c3171f6b19acb5b10b8a8512e4d0e38a52f1626af42916e4850a5a44f7eb"
   }
