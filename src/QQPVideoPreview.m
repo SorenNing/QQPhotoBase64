@@ -13,7 +13,7 @@ static NSString *QQPVideoClock(NSTimeInterval seconds) {
     return [NSString stringWithFormat:@"%02lld:%02lld", minutes, remainder];
 }
 
-@interface QQPVideoPreviewController : UIViewController
+@interface QQPVideoPreviewController : UIViewController <UIGestureRecognizerDelegate>
 @property(nonatomic,strong) NSURL *temporaryDirectory;
 @property(nonatomic,strong) AVPlayer *player;
 @property(nonatomic,strong) AVPlayerItem *item;
@@ -40,6 +40,15 @@ static NSString *QQPVideoClock(NSTimeInterval seconds) {
     self.videoLayer = [AVPlayerLayer playerLayerWithPlayer:self.player];
     self.videoLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     [self.view.layer addSublayer:self.videoLayer];
+
+    UISwipeGestureRecognizer *unmuteSwipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(unmuteVideo:)];
+    unmuteSwipe.direction = UISwipeGestureRecognizerDirectionUp;
+    unmuteSwipe.delegate = self;
+    [self.view addGestureRecognizer:unmuteSwipe];
+    UISwipeGestureRecognizer *muteSwipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(muteVideo:)];
+    muteSwipe.direction = UISwipeGestureRecognizerDirectionDown;
+    muteSwipe.delegate = self;
+    [self.view addGestureRecognizer:muteSwipe];
 
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
     [close setImage:[UIImage systemImageNamed:@"xmark"] forState:UIControlStateNormal];
@@ -119,6 +128,23 @@ static NSString *QQPVideoClock(NSTimeInterval seconds) {
     self.scrubber.frame = CGRectMake(safe.left + 72, 6, MAX(0, width - safe.left - safe.right - 84), 44);
     self.clockLabel.frame = CGRectMake(safe.left + 20, 52, MAX(0, width - safe.left - safe.right - 32), 22);
     self.errorLabel.frame = CGRectInset(CGRectMake(0, 0, width, CGRectGetHeight(bounds)), 24, 90);
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+    if (self.cleanedUp || !self.errorLabel.hidden) return NO;
+    CGPoint location = [touch locationInView:self.view];
+    return !CGRectContainsPoint(self.closeButton.frame, location) &&
+           !CGRectContainsPoint(self.bottomBar.frame, location);
+}
+
+- (void)unmuteVideo:(UISwipeGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer.state == UIGestureRecognizerStateRecognized && !self.cleanedUp)
+        self.player.muted = NO;
+}
+
+- (void)muteVideo:(UISwipeGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer.state == UIGestureRecognizerStateRecognized && !self.cleanedUp)
+        self.player.muted = YES;
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
@@ -325,6 +351,7 @@ UIViewController *QQPCreateVideoPreview(NSURL *fileURL, NSURL *temporaryDirector
     QQPVideoPreviewController *preview = [QQPVideoPreviewController new];
     preview.item = [AVPlayerItem playerItemWithURL:file];
     preview.player = [AVPlayer playerWithPlayerItem:preview.item];
+    preview.player.muted = YES;
     preview.temporaryDirectory = directory;
     preview.playWhenReady = YES;
     preview.modalPresentationStyle = UIModalPresentationFullScreen;

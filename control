@@ -1,6 +1,6 @@
 Package: com.ning.qqencryption
 Name: qqEncryption
-Version: 1.0
+Version: 1.0.1
 Architecture: iphoneos-arm64e
 Maintainer: Ning
 Author: Ning

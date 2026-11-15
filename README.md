@@ -1,6 +1,6 @@
 # qqEncryption
 
-作者：Ning · 版本：1.0 · iOS 15+
+作者：Ning · 版本：1.0.1 · iOS 15+
 
 包标识：`com.ning.qqencryption`。迁移自 `com.ning.qqphotobase64`，包声明替换并冲突旧标识，避免两份插件并存。用户选定的企鹅头像仅通过软件源的 `Icon` URL 用于 Sileo，不包含在 deb 中，不添加设置页或修改 QQ 界面。
 
