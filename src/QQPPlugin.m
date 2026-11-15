@@ -3,6 +3,7 @@
 #import <objc/runtime.h>
 #import "QQPRuntime.h"
 #import "QQPImageIO.h"
+#import "QQPChat.h"
 
 static const void *QQPSessionKey=&QQPSessionKey;
 static const void *QQPControlKey=&QQPControlKey;
@@ -11,6 +12,7 @@ static const void *QQPDecodeKey=&QQPDecodeKey;
 @interface QQPSession : NSObject
 @property(nonatomic) BOOL selected;
 @property(nonatomic) BOOL busy;
+@property(nonatomic) BOOL submitted;
 @property(nonatomic,weak) UIViewController *picker;
 @property(nonatomic,strong) NSArray<NSURL *> *exports;
 @property(nonatomic,strong) QQPExportTask *task;
@@ -25,18 +27,26 @@ static const void *QQPDecodeKey=&QQPDecodeKey;
 - (instancetype)initWithFrame:(CGRect)frame {
     if((self=[super initWithFrame:frame])){
         [self setTitle:@"加密" forState:UIControlStateNormal];self.titleLabel.font=[UIFont systemFontOfSize:13];
-        [self setTitleColor:UIColor.labelColor forState:UIControlStateNormal];
-        UIImageSymbolConfiguration *config=[UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightRegular];
+        [self setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+        [self setTitleColor:UIColor.whiteColor forState:UIControlStateSelected];
+        [self setTitleColor:[UIColor.whiteColor colorWithAlphaComponent:0.55] forState:UIControlStateDisabled];
+        UIImageSymbolConfiguration *config=[UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightRegular];
         [self setImage:[UIImage systemImageNamed:@"circle" withConfiguration:config] forState:UIControlStateNormal];
         [self setImage:[UIImage systemImageNamed:@"checkmark.circle.fill" withConfiguration:config] forState:UIControlStateSelected];
-        self.tintColor=UIColor.systemBlueColor;
-        UIButtonConfiguration *configuration=[UIButtonConfiguration plainButtonConfiguration];configuration.imagePadding=4;configuration.contentInsets=NSDirectionalEdgeInsetsZero;self.configuration=configuration;
+        self.imageView.contentMode=UIViewContentModeScaleAspectFit;
+        self.titleLabel.textAlignment=NSTextAlignmentLeft;self.tintColor=UIColor.whiteColor;
         [self addTarget:self action:@selector(toggle:) forControlEvents:UIControlEventTouchUpInside];
         self.accessibilityLabel=@"加密，Base64图片文件";
     }return self;
 }
+- (CGRect)imageRectForContentRect:(CGRect)rect {
+    return CGRectMake(CGRectGetMinX(rect),CGRectGetMidY(rect)-8,16,16);
+}
+- (CGRect)titleRectForContentRect:(CGRect)rect {
+    return CGRectMake(CGRectGetMinX(rect)+21,CGRectGetMinY(rect),MAX(0,CGRectGetWidth(rect)-21),CGRectGetHeight(rect));
+}
 - (void)toggle:(id)sender {
-    if(!self.session || self.session.busy)return;
+    if(!self.session || self.session.busy || self.session.submitted)return;
     self.session.selected=!self.session.selected;
     self.selected=self.session.selected;
     self.accessibilityValue=self.selected?@"已勾选":@"未勾选";
@@ -99,7 +109,7 @@ static void QQPLayoutBar(UIView *bar) {
     UIView *origin=QQPOriginalButton(bar);
     if(!session || !origin || origin.hidden || CGRectGetWidth(bar.bounds)<180){button.hidden=YES;return;}
     if(!button){button=[[QQPEncryptButton alloc]initWithFrame:CGRectMake(0,0,72,36)];objc_setAssociatedObject(bar,QQPControlKey,button,OBJC_ASSOCIATION_RETAIN_NONATOMIC);[bar addSubview:button];}
-    button.session=session;button.selected=session.selected;button.enabled=!session.busy;
+    button.session=session;button.selected=session.selected;button.enabled=!session.busy && !session.submitted;
     CGRect anchor=[origin convertRect:origin.bounds toView:bar];
     CGFloat width=72,x=CGRectGetMaxX(anchor)+6,y=CGRectGetMidY(anchor)-18;
     CGRect target=CGRectMake(x,y,width,36);
@@ -114,22 +124,29 @@ static void QQPLayoutBar(UIView *bar) {
     button.hidden=!fits;button.frame=target;
 }
 
-// The native QQ file hand-off is implemented separately; it never calls the photo sender.
-BOOL QQPShareFiles(NSArray<NSURL *> *files,UIViewController *presenter);
+// File submission uses the recipient captured from this picker.
 static BOOL QQPInterceptSend(UIView *bar) {
     QQPSession *s=QQPSessionForBar(bar);if(!s.selected)return NO;
     if(s.busy)return YES;
+    UIViewController *presenter=QQPOwningController(bar);
+    if(s.submitted){QQPShowMessage(presenter,@"文件已提交",@"请返回聊天查看。此次相册已锁定，避免重复提交；发送更多图片请重新打开相册。" );return YES;}
+    NSString *reason=nil;QQPChatTarget *target=QQPCaptureChatTarget(s.picker,&reason);
+    if(!target){QQPShowMessage(presenter,@"未发送",reason);return YES;}
     NSArray<PHAsset *> *assets=QQPSelectedPhotos(s);
-    if(!assets.count){QQPShowMessage(QQPOwningController(bar),@"未发送",@"请在相册选择1至9张静态图片；当前选图接口不受支持时，普通图片不会发送。" );return YES;}
-    s.busy=YES;[bar setNeedsLayout];__weak UIView *weakBar=bar;__weak UIViewController *weakPresenter=QQPOwningController(bar);
+    if(!assets.count){QQPShowMessage(presenter,@"未发送",@"请在相册选择1至9张静态图片；当前选图接口不受支持时，普通图片不会发送。" );return YES;}
+    s.busy=YES;[bar setNeedsLayout];__weak UIView *weakBar=bar;__weak UIViewController *weakPresenter=presenter;
     NSUInteger generation=++s.generation;
     s.task=QQPExportImages(assets,^(NSArray<NSURL *> *files,NSError *error){
         if(generation!=s.generation){QQPDiscardExports(files);return;}
-        s.busy=NO;s.task=nil;[weakBar setNeedsLayout];UIViewController *presenter=weakPresenter;
-        if(!presenter.viewIfLoaded.window || presenter.presentedViewController){QQPDiscardExports(files);return;}
-        if(!files.count){QQPShowMessage(presenter,@"未发送",error.localizedDescription?:@"图片处理失败。" );return;}
-        s.exports=files;
-        if(!QQPShareFiles(files,presenter))QQPShowMessage(presenter,@"文件已生成，未发送",@"当前QQ的文件转发接口不匹配；请勿关闭加密后误发原图。" );
+        s.task=nil;UIViewController *host=weakPresenter;
+        if(!host.viewIfLoaded.window || host.presentedViewController){s.busy=NO;[weakBar setNeedsLayout];QQPDiscardExports(files);return;}
+        if(!files.count){s.busy=NO;[weakBar setNeedsLayout];QQPShowMessage(host,@"未发送",error.localizedDescription?:@"图片处理失败。" );return;}
+        NSString *failure=nil;NSUInteger submitted=0;
+        BOOL complete=QQPSendFilesToChat(files,target,s.picker,&submitted,&failure);
+        s.busy=NO;s.submitted=submitted>0;if(submitted)s.exports=files;else QQPDiscardExports(files);
+        [weakBar setNeedsLayout];
+        if(complete)QQPShowMessage(host,@"已提交到当前聊天",@"编码文件已交给QQ，请返回聊天查看发送状态。" );
+        else QQPShowMessage(host,submitted?@"提交中断，请检查聊天":@"未发送",failure?:@"QQ未接受此次文件提交。" );
     });return YES;
 }
 
@@ -181,6 +198,7 @@ static void QQPCancelLeaving(id object) {
 }
 static void QQPInstallHooks(void) {
     static BOOL installed=NO;if(installed)return;installed=YES;
+    QQPInstallChatCapture();
     NSArray<NSString *> *barNames=@[@"QQImagePickerBottomBar",@"PhotoOperatorView.QQPhotoOperatorView",@"_TtC17PhotoOperatorView19QQPhotoOperatorView"];
     NSMutableSet *seen=[NSMutableSet set];
     for(NSString *name in barNames){

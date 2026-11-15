@@ -8,18 +8,29 @@ static const char *QQPSkipQualifiers(const char *type) {
     while (type && *type && strchr("rnNoORV", *type)) type++;
     return type;
 }
+static BOOL QQPObjectEncoding(const char *type) {
+    if(!type)return NO;
+    if(strcmp(type,"@")==0)return YES;
+    size_t length=strlen(type);
+    return length>=4 && type[0]=='@' && type[1]=='"' &&
+           type[length-1]=='"' && strchr(type+2,'"')==type+length-1;
+}
 BOOL QQPMethodMatches(Class cls, SEL sel, const char *result, NSArray<NSString *> *arguments) {
     if (!cls) return NO;
     Method method=class_getInstanceMethod(cls,sel);
     if (!method || method_getNumberOfArguments(method)!=arguments.count+2) return NO;
     char *ret=method_copyReturnType(method);
     const char *unqualified=QQPSkipQualifiers(ret);
-    BOOL matches=unqualified && (result[0]=='@' ? unqualified[0]=='@' : strcmp(unqualified,result)==0);
+    BOOL matches=unqualified && (result[0]=='@' && result[1]=='\0' ? QQPObjectEncoding(unqualified) : strcmp(unqualified,result)==0);
     free(ret);
+    char *selfType=method_copyArgumentType(method,0),*commandType=method_copyArgumentType(method,1);
+    matches=matches && QQPObjectEncoding(QQPSkipQualifiers(selfType)) &&
+            QQPSkipQualifiers(commandType) && strcmp(QQPSkipQualifiers(commandType),":")==0;
+    free(selfType);free(commandType);
     for (NSUInteger i=0; matches && i<arguments.count; i++) {
         char *type=method_copyArgumentType(method,(unsigned int)i+2);
         const char *plain=QQPSkipQualifiers(type), *expected=arguments[i].UTF8String;
-        matches=plain && (expected[0]=='@' ? plain[0]=='@' : strcmp(plain,expected)==0);
+        matches=plain && (expected[0]=='@' && expected[1]=='\0' ? QQPObjectEncoding(plain) : strcmp(plain,expected)==0);
         free(type);
     }
     return matches;
@@ -64,6 +75,16 @@ BOOL QQPHookAppearance(Class cls,SEL selector,void (^before)(id)) {
     if(!QQPMethodMatches(cls,selector,"v",@[@"B"]) && !QQPMethodMatches(cls,selector,"v",@[@"c"]))return NO;
     IMP original=class_getMethodImplementation(cls,selector);
     IMP replacement=imp_implementationWithBlock(^(id object,BOOL animated){before(object);((void(*)(id,SEL,BOOL))original)(object,selector,animated);});
+    return QQPReplace(cls,selector,replacement,original);
+}
+BOOL QQPHookObjectSetter(Class cls, SEL selector, id (^before)(id,id), void (^after)(id,id,id)) {
+    if(!QQPMethodMatches(cls,selector,"v",@[@"@"]))return NO;
+    IMP original=class_getMethodImplementation(cls,selector);
+    IMP replacement=imp_implementationWithBlock(^(id object,id value){
+        id token=before(object,value);
+        ((void(*)(id,SEL,id))original)(object,selector,value);
+        after(object,value,token);
+    });
     return QQPReplace(cls,selector,replacement,original);
 }
 BOOL QQPHookSend(Class cls, SEL selector, BOOL returnsBool, BOOL (^intercept)(id,id)) {
