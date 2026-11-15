@@ -27,7 +27,7 @@
     "tests/fixture-video.mp4": "c330885092d0b2f60ff947b87fb9ff49dbedb7b0929acace8781b2b875b79c86",
     "tests/video_codec_test.m": "6d590513e3659db71f3b1496846030a321eb80c907a3148ceb322ecd6859655e",
     "tests/weak_field_test.c": "65e08b559c312c126b1938ced72f498c3046d13ae6f32ed47ea03ce1bee91302",
-    "tools/build-macos.sh": "0bedf21935a7df06dc604c65d1cef47170133fc2f2f88e6c827b654014730a36",
+    "tools/build-macos.sh": "cdbb3176fa4990a65966eca67b595df347c2940bdbdc6e385bca41722f60e2cb",
     "tools/make_fixture.py": "2b8ff1858191b18dc150a303f2625883291499db0e1a520bd33779534804db24",
     "tools/package.py": "d60225a988e585c4c964278759ffb09f2485eeb168d046bd281d7b77c7aa20a0",
     "tools/test-macos.sh": "555788caa85d0b6e7cec6d68cc61bc6f00980befacfa25e0c06cb0727a872e93",
