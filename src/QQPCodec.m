@@ -39,7 +39,7 @@ static BOOL QQPImage(NSData *data) {
     return valid;
 }
 // Video processing uses fixed-size buffers; input sizes are checked for overflow only.
-static const size_t QQPVideoChunk = 48 * 1024;
+enum { QQPVideoChunk = 48 * 1024 };
 static const char QQPVideoMarker[] = "QQENC2\n";
 
 static BOOL QQPVideoFail(NSError **error, NSString *reason) {
