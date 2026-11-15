@@ -1,10 +1,13 @@
-Package: com.ning.qqphotobase64
+Package: com.ning.qqencryption
 Name: qqEncryption
-Version: 0.1.4
+Version: 1.0
 Architecture: iphoneos-arm64e
 Maintainer: Ning
 Author: Ning
 Section: Tweaks
 Priority: optional
 Depends: firmware (>= 15.0)
+Conflicts: com.ning.qqphotobase64
+Replaces: com.ning.qqphotobase64
+Icon: https://ningios.github.io/debs/icons/qqencryption.png
 Description: QQ static-photo Base64 containers with a circular toggle and file decode preview. Base64 provides no secrecy.

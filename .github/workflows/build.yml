@@ -1,4 +1,4 @@
-name: Build QQPhotoBase64
+name: Build qqEncryption
 on:
   workflow_dispatch:
 permissions:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: QQPhotoBase64-0.1.4
+          name: qqEncryption-1.0
           path: |
             dist/*
             build/*.json

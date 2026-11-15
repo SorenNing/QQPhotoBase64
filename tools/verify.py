@@ -222,11 +222,13 @@ def package(path):
         key, sep, value = line.partition(':')
         need(sep and key not in fields and key.strip() == key, 'invalid/duplicate control field')
         fields[key] = value.strip(); last = key
-    expected = {'Package': 'com.ning.qqphotobase64', 'Name': 'qqEncryption', 'Version': '0.1.4', 'Maintainer': 'Ning', 'Author': 'Ning'}
+    expected = {'Package': 'com.ning.qqencryption', 'Name': 'qqEncryption', 'Version': '1.0', 'Maintainer': 'Ning', 'Author': 'Ning',
+                'Icon': 'https://ningios.github.io/debs/icons/qqencryption.png',
+                'Conflicts': 'com.ning.qqphotobase64', 'Replaces': 'com.ning.qqphotobase64'}
     need(all(fields.get(k) == v for k, v in expected.items()), 'control identity/version/author mismatch')
     arch = fields.get('Architecture')
     need(arch in ('iphoneos-arm64', 'iphoneos-arm64e'), 'wrong package architecture')
-    need(path.name == f'com.ning.qqphotobase64_0.1.4_{arch}.deb', 'package filename disagrees with control')
+    need(path.name == f'com.ning.qqencryption_1.0_{arch}.deb', 'package filename disagrees with control')
     prefix = 'var/jb/' if arch == 'iphoneos-arm64' else ''
     base = prefix + 'Library/MobileSubstrate/DynamicLibraries/QQPhotoBase64'
     files = tar(members['data.tar.gz'])

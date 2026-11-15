@@ -1,6 +1,8 @@
-# qqEncryption 0.1.4：按架构瘦身
+# qqEncryption 1.0
 
-包显示名称已按用户选择改为 `qqEncryption`（大小写原样保留）。包标识 `com.ning.qqphotobase64`、仓库名、动态库名及功能保持不变。本次仅修改名称并同步源码，不构建或重封装；已交付的 0.1.4 安装包未改名，需后续获准出包才会生效。
+显示名称 `qqEncryption`，新包标识 `com.ning.qqencryption`，版本 `1.0`。通过 `Conflicts` 与 `Replaces` 取代旧 `com.ning.qqphotobase64`，避免新旧重复加载。仓库名、动态库名、缓存目录及图片/视频功能不变，源代码相对 0.1.4 未改业务逻辑。
+
+头像使用用户指定的原始企鹅图片，仅以 `Icon: https://ningios.github.io/debs/icons/qqencryption.png` 显示在 Sileo；不包含头像文件到 deb，不新增设置页或其他 UI。用户已授权一次双版本构建及构建成功后直接发布小号 Ning源，失败不自动重试。
 
 0.1.4 仅调整编译签名及包封装：普通无根包只包含 arm64，RootHide 包只包含真 arm64e（subtype 0x80000002）；各自独立签名，不再重复装入另一架构。图片、视频、播放器及发送代码与 0.1.3 完全相同，不删功能。
 

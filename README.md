@@ -1,6 +1,8 @@
 # qqEncryption
 
-作者：Ning · 版本：0.1.4 · iOS 15+
+作者：Ning · 版本：1.0 · iOS 15+
+
+包标识：`com.ning.qqencryption`。迁移自 `com.ning.qqphotobase64`，包声明替换并冲突旧标识，避免两份插件并存。用户选定的企鹅头像仅通过软件源的 `Icon` URL 用于 Sileo，不包含在 deb 中，不添加设置页或修改 QQ 界面。
 
 QQ 相册底栏在“原图”旁加入圆圈“加密”开关。勾选后将选择的静态图片编码为既有 `.qqenc` JSON 文件，MP4/MOV/M4V 视频编码为新 `QQENC2` 流式 Base64 `.qqenc` 文件；仅在当前聊天对象可被安全核实时直发，整批交给 QQ 后关闭相册返回聊天。失败仍显示原因且不会改发未编码原视频。QQ 文件详情页在“用其他应用打开”上方显示“解密”，解码后在 QQ 内预览图片或播放视频，不使用系统 Quick Look。
 
