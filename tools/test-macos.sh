@@ -13,7 +13,7 @@ build/weak-field-test | tee build/weak-field-test.json
 xcrun --sdk macosx clang -std=c11 -O2 -Wall -Wextra -Werror \
   -Isrc -c src/QQPWeakField.c -o build/weak-field-macos.o
 cat src/QQPContextInspector.swift tests/context_fixture.swift > build/main.swift
-xcrun --sdk macosx swiftc -swift-version 5 -O -DQQP_CONTEXT_TEST \
+xcrun --sdk macosx swiftc -swift-version 5 -O -g -DQQP_CONTEXT_TEST \
   -import-objc-header src/QQPReflection.h build/main.swift build/weak-field-macos.o \
-  -o build/context-fixture
-build/context-fixture | tee build/context-fixture.json
+  -o build/context-fixture 2>&1 | tee build/context-fixture-build.log
+build/context-fixture 2> >(tee build/context-fixture.log >&2) | tee build/context-fixture.json

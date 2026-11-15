@@ -34,35 +34,49 @@ private final class QQPFixtureCustom: QQPFixtureBase, CustomReflectable {
     static var calls = 0
     var customMirror: Mirror { Self.calls += 1; return Mirror(self, children: [:]) }
 }
+private func qqpCheck(_ condition: @autoclosure () -> Bool, line: UInt = #line) {
+    // Write before evaluation: even a runtime trap must leave the precise case.
+    FileHandle.standardError.write(Data("QQP fixture checking line \(line)\n".utf8))
+    guard condition() else {
+        FileHandle.standardError.write(Data("QQP fixture FAILED line \(line)\n".utf8))
+        exit(1)
+    }
+}
 private func qqpRunContextFixture() {
-    precondition(Thread.isMainThread)
+    qqpCheck(Thread.isMainThread)
     let first = QQPFixtureContext(), second = QQPFixtureContext()
     let child = QQPFixtureChild(first)
-    precondition(qqpField(child, declaringClass: QQPFixtureBase.self, name: "chatContext") === first)
-    precondition(qqpField(child, declaringClass: QQPFixtureChild.self, name: "chatContext") == nil)
-    precondition(qqpField(QQPFixtureBase(nil), declaringClass: QQPFixtureBase.self, name: "chatContext") == nil)
+    qqpCheck(qqpField(child, declaringClass: QQPFixtureBase.self, name: "chatContext") === first)
+    qqpCheck(qqpField(child, declaringClass: QQPFixtureChild.self, name: "chatContext") == nil)
+    qqpCheck(qqpField(QQPFixtureBase(nil), declaringClass: QQPFixtureBase.self, name: "chatContext") == nil)
     let custom = QQPFixtureCustom(first)
-    precondition(qqpField(custom, declaringClass: QQPFixtureBase.self, name: "chatContext") === first)
-    precondition(QQPFixtureCustom.calls == 0)
+    qqpCheck(qqpField(custom, declaringClass: QQPFixtureBase.self, name: "chatContext") === first)
+    qqpCheck(QQPFixtureCustom.calls == 0)
     let weakOwner = QQPFixtureWeak()
     weakOwner.context = first
-    precondition(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) === first)
-    precondition(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context") == nil)
+    qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) === first)
+    qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context") == nil)
     weakOwner.context = second
-    precondition(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) === second)
+    qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) === second)
     weakOwner.context = nil
-    precondition(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) == nil)
-    autoreleasepool { weakOwner.context = QQPFixtureContext() }
-    precondition(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) == nil)
+    qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) == nil)
+    autoreleasepool {
+        let temporary = QQPFixtureContext()
+        weakOwner.context = temporary
+        withExtendedLifetime(temporary) {
+            qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) === temporary)
+        }
+    }
+    qqpCheck(qqpField(weakOwner, declaringClass: QQPFixtureWeak.self, name: "context", ownership: .verifiedWeak) == nil)
     let protocolOwner = QQPFixtureProtocolWeak()
     protocolOwner.context = first
-    precondition(qqpField(protocolOwner, declaringClass: QQPFixtureProtocolWeak.self, name: "context", ownership: .verifiedWeak) === first)
+    qqpCheck(qqpField(protocolOwner, declaringClass: QQPFixtureProtocolWeak.self, name: "context", ownership: .verifiedWeak) === first)
     let unowned = QQPFixtureUnowned(first), unsafe = QQPFixtureUnsafe(first)
-    precondition(qqpField(unowned, declaringClass: QQPFixtureUnowned.self, name: "context", ownership: .verifiedWeak) == nil)
-    precondition(qqpField(unsafe, declaringClass: QQPFixtureUnsafe.self, name: "context", ownership: .verifiedWeak) == nil)
+    qqpCheck(qqpField(unowned, declaringClass: QQPFixtureUnowned.self, name: "context", ownership: .verifiedWeak) == nil)
+    qqpCheck(qqpField(unsafe, declaringClass: QQPFixtureUnsafe.self, name: "context", ownership: .verifiedWeak) == nil)
     var adjacent: QQPFixtureAdjacent!
     autoreleasepool { adjacent = QQPFixtureAdjacent(first, QQPFixtureContext()) }
-    precondition(qqpField(adjacent, declaringClass: QQPFixtureAdjacent.self, name: "chatContext") === first)
+    qqpCheck(qqpField(adjacent, declaringClass: QQPFixtureAdjacent.self, name: "chatContext") === first)
     print("{\"passed\":true,\"scope\":\"production Swift strong/weak reader on Apple fixture objects; no QQ runtime\"}")
 }
 qqpRunContextFixture()

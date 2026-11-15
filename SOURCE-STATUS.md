@@ -21,8 +21,9 @@
 
 ## 尚未执行
 
-- Apple Swift 编译与实际桥接 fixture（已接 `tools/test-macos.sh`）：继承层、Optional、weak 替换/清空/消失、protocol weak、unowned 拒绝、相邻 dangling unowned。
+- **一次授权构建已在 run 43659427064 失败。** Apple Swift 编译和链接的 macOS fixture 可执行文件已生成，但执行发生 `Trace/BPT trap: 5`；旧脚本未记录具体断言。图片 codec 和 34 项 C 解析测试通过；iOS dylib 编译、签名、打包和上传 deb 步骤均未运行。
+- Swift fixture 现增加逐项行号诊断、弱引用存活/释放测试修正，尚未获新的构建许可，不能称 fixture 通过。待验证继承层、Optional、weak 替换/清空/消失、protocol weak、unowned 拒绝、相邻 dangling unowned。
 - 完整 iOS 双架构链接、签名、安装包生成及最终包检查。
 - QQ 9.3.86.617 的实际字段元数据/加载、当前聊天提交、接收及取消实测。
 
-GitHub workflow 仅手动 dispatch。源码同步不会触发构建；下一次构建需单次许可，默认同时生成普通无根 64 与 RootHide 64e。没有自动安装、注入、注销或更新软件源。
+GitHub workflow 仅手动 dispatch。源码同步不会触发构建；run 43659427064 已耗尽本次单次许可，重新构建/重跑须新单次许可，默认同时生成普通无根 64 与 RootHide 64e。没有自动安装、注入、注销或更新软件源。
